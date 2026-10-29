@@ -40,6 +40,11 @@ builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)   // "use JWT bearer tokens to log people in"
     .AddJwtBearer(options =>
     {
+        // By default .NET renames incoming claims ("sub" becomes a long nameidentifier URL, "role" becomes
+        // a long role URL). false = keep the names exactly as written in the token, so they match the
+        // NameClaimType / RoleClaimType settings below and the "sub" lookup in GetMemberId.
+        options.MapInboundClaims = false;
+
         // These are the checks a token must pass to be accepted.
         options.TokenValidationParameters = new TokenValidationParameters
         {
