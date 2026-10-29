@@ -44,15 +44,24 @@ public class DisbursementsDbContext : DbContext
                   .HasMaxLength(20);
 
             // Cap the failure reason's length so the column is not nvarchar(max).
-            entity.Property(d => d.FailureReason).HasMaxLength(500);
+            entity.Property(d => d.FailureReason).HasMaxLength(Disbursement.MaxFailureReasonLength);
+
+            // Mark RowVersion as a SQL Server "rowversion" column: the database bumps it on every update,
+            // and EF Core checks it on save to detect two people changing the same row at once.
+            entity.Property(d => d.RowVersion).IsRowVersion();
 
             // UNIQUE index on ClaimId: the database itself refuses a second disbursement for the
             // same claim. This is what makes the ClaimApproved handler idempotent (rule 5):
             // if the same event arrives twice, the second insert fails instead of paying twice.
             entity.HasIndex(d => d.ClaimId).IsUnique();
 
-            // Plain index on MemberId: members fetch "my disbursements" often, so this speeds it up.
-            entity.HasIndex(d => d.MemberId);
+            // Composite index on (MemberId, DueDate): "my disbursements, latest due first" can be answered
+            // straight from the index (filter on MemberId, already sorted by DueDate) with no extra sort.
+            // It also covers queries on MemberId alone, so no separate MemberId index is needed.
+            entity.HasIndex(d => new { d.MemberId, d.DueDate });
+
+            // Index on Status for the admin list filtered by status (for example, all Pending).
+            entity.HasIndex(d => d.Status);
         });
     }
 }

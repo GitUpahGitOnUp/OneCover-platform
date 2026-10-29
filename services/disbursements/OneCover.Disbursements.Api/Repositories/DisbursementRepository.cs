@@ -1,3 +1,4 @@
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using OneCover.Disbursements.Api.Data;
 using OneCover.Disbursements.Api.Models;
@@ -9,6 +10,11 @@ namespace OneCover.Disbursements.Api.Repositories;
 // ": IDisbursementRepository" promises this class provides every method in the interface.
 public class DisbursementRepository : IDisbursementRepository
 {
+    // SQL Server error numbers for "duplicate value in a unique index" (2601) and
+    // "duplicate value in a unique constraint" (2627). Either one means the row already exists.
+    private const int UniqueIndexViolation = 2601;
+    private const int UniqueConstraintViolation = 2627;
+
     // readonly = can be set once (in the constructor) and never reassigned.
     private readonly DisbursementsDbContext _db;
 
@@ -38,22 +44,26 @@ public class DisbursementRepository : IDisbursementRepository
     /// <inheritdoc />
     public async Task<Disbursement?> GetByClaimIdAsync(int claimId)
     {
-        return await _db.Disbursements.FirstOrDefaultAsync(d => d.ClaimId == claimId);
+        return await _db.Disbursements
+            .AsNoTracking()                            // read-only: we only check existence, so skip change tracking
+            .FirstOrDefaultAsync(d => d.ClaimId == claimId);   // first match for this claim, or null
     }
 
     /// <inheritdoc />
-    public async Task<List<Disbursement>> ListForMemberAsync(int memberId)
+    public async Task<List<Disbursement>> ListForMemberAsync(int memberId, int skip = 0, int take = 50)
     {
         return await _db.Disbursements
             .AsNoTracking()                       // read-only: skip change tracking, which is faster for lists we won't edit
             .Where(d => d.MemberId == memberId)   // keep only this member's rows
             .OrderByDescending(d => d.DueDate)    // sort so the latest due date comes first
+            .Skip(skip)                           // jump over the rows belonging to earlier pages
+            .Take(take)                           // then keep at most one page of rows
             .ToListAsync();                       // NOW run the SQL and return the rows as a List
         // Nothing hits the database until ToListAsync. Before that, we are only building up the query.
     }
 
     /// <inheritdoc />
-    public async Task<List<Disbursement>> ListAllAsync(DisbursementStatus? status = null)
+    public async Task<List<Disbursement>> ListAllAsync(DisbursementStatus? status = null, int skip = 0, int take = 50)
     {
         // IQueryable = a query that is described but not yet run. We can keep adding to it.
         IQueryable<Disbursement> query = _db.Disbursements.AsNoTracking();
@@ -66,21 +76,42 @@ public class DisbursementRepository : IDisbursementRepository
 
         return await query
             .OrderByDescending(d => d.DueDate)   // latest due date first
+            .ThenByDescending(d => d.Id)         // tie-breaker so rows with the same date always page in a stable order
+            .Skip(skip)                          // jump over earlier pages
+            .Take(take)                          // keep at most one page
             .ToListAsync();                      // run the SQL and return a List
     }
 
     /// <inheritdoc />
-    public async Task AddAsync(Disbursement disbursement)
+    public async Task<bool> TryAddAsync(Disbursement disbursement)
     {
-        // Marks the object as "new". Nothing is written until SaveChangesAsync.
-        await _db.Disbursements.AddAsync(disbursement);
+        // Add (not AddAsync): it only marks the object as "new" in memory, no database call, so no await needed.
+        _db.Disbursements.Add(disbursement);
+
+        try
+        {
+            // The INSERT happens here. If another handler already inserted this ClaimId, the
+            // unique index makes SQL Server reject it and EF Core throws DbUpdateException.
+            await _db.SaveChangesAsync();
+            return true;
+        }
+        // "when (...)" = only catch this exception if the condition is true; any other DbUpdateException still escapes.
+        // InnerException is the underlying SqlException; its Number says which SQL error happened.
+        catch (DbUpdateException ex) when (ex.InnerException is SqlException sql
+            && (sql.Number == UniqueIndexViolation || sql.Number == UniqueConstraintViolation))
+        {
+            // The disbursement for this claim already exists, which is fine (idempotency).
+            // Detach our failed object so it isn't retried by a later SaveChangesAsync on this context.
+            _db.Entry(disbursement).State = EntityState.Detached;
+            return false;
+        }
     }
 
     /// <inheritdoc />
     public async Task SaveChangesAsync()
     {
-        // Sends every pending insert/update to SQL Server in a single transaction.
-        // If the unique ClaimId index is violated, this is where the exception surfaces.
+        // Sends every pending update to SQL Server in a single transaction.
+        // The RowVersion check makes this throw DbUpdateConcurrencyException if the row changed underneath us.
         await _db.SaveChangesAsync();
     }
 }

@@ -9,6 +9,10 @@ namespace OneCover.Disbursements.Api.Models;
 /// </summary>
 public class Disbursement
 {
+    /// <summary>Longest failure reason allowed. The database column uses the same limit.</summary>
+    // const = a value fixed at compile time. Shared by MarkFailed and the DbContext so they cannot drift apart.
+    public const int MaxFailureReasonLength = 500;
+
     /// <summary>Database primary key. "set" is public so EF Core can fill it in after saving.</summary>
     public int Id { get; set; }
 
@@ -47,6 +51,15 @@ public class Disbursement
     /// </summary>
     public DisbursementStatus Status { get; private set; } = DisbursementStatus.Pending;
 
+    /// <summary>
+    /// Version stamp that SQL Server changes automatically on every update ("rowversion").
+    /// EF Core adds it to the WHERE clause of each UPDATE, so if someone else changed the row
+    /// after we loaded it, our save fails with DbUpdateConcurrencyException instead of silently
+    /// overwriting them. This stops two admins marking the same disbursement Paid and Failed.
+    /// </summary>
+    // byte[] = raw bytes. "= []" starts as an empty array; the database fills in the real value.
+    public byte[] RowVersion { get; private set; } = [];
+
     // A PRIVATE constructor means other code can't write "new Disbursement()".
     // The only way to create one is the factory method below, so every disbursement starts valid.
     // EF Core is still allowed to use it when it loads rows from the database.
@@ -54,18 +67,40 @@ public class Disbursement
     {
     }
 
-    /// <summary>Creates the Pending disbursement for an approved claim.</summary>
+    /// <summary>
+    /// Creates the Pending disbursement for an approved claim.
+    /// Throws BusinessRuleException if the ids are not positive or the amount is not above zero.
+    /// </summary>
     // "static" means you call it on the class itself: Disbursement.CreatePending(...).
-    // This is called a "factory method". The "=> new() { ... }" form returns a new object
+    // This is called a "factory method". It checks the inputs first, then returns a new object
     // and sets its properties in the { } block (allowed here because init works during creation).
-    public static Disbursement CreatePending(int claimId, int memberId, decimal amount, DateOnly dueDate) => new()
+    public static Disbursement CreatePending(int claimId, int memberId, decimal amount, DateOnly dueDate)
     {
-        ClaimId = claimId,
-        MemberId = memberId,
-        Amount = amount,
-        DueDate = dueDate
-        // Status is already Pending by default, and PaidDate / FailureReason stay null.
-    };
+        // Guard clauses: a default (0) id or a zero/negative amount means a bad event, so refuse to create it.
+        if (claimId <= 0)
+        {
+            throw new BusinessRuleException("A disbursement needs a valid claim id.");
+        }
+
+        if (memberId <= 0)
+        {
+            throw new BusinessRuleException("A disbursement needs a valid member id.");
+        }
+
+        if (amount <= 0)
+        {
+            throw new BusinessRuleException("A disbursement amount must be greater than zero.");
+        }
+
+        return new Disbursement
+        {
+            ClaimId = claimId,
+            MemberId = memberId,
+            Amount = amount,
+            DueDate = dueDate
+            // Status is already Pending by default, and PaidDate / FailureReason stay null.
+        };
+    }
 
     /// <summary>Marks a Pending disbursement as paid on the given date. Throws if it isn't Pending.</summary>
     // The rule this class protects: Status and PaidDate change TOGETHER, and only from Pending.
@@ -82,7 +117,10 @@ public class Disbursement
         PaidDate = paidOn;
     }
 
-    /// <summary>Marks a Pending disbursement as failed and records why. Throws if it isn't Pending.</summary>
+    /// <summary>
+    /// Marks a Pending disbursement as failed and records why.
+    /// Throws if it isn't Pending, or if the reason is blank or longer than <see cref="MaxFailureReasonLength"/>.
+    /// </summary>
     public void MarkFailed(string reason)
     {
         if (Status != DisbursementStatus.Pending)
@@ -90,7 +128,19 @@ public class Disbursement
             throw new BusinessRuleException($"Only pending disbursements can be marked failed. This one is {Status}.");
         }
 
+        // IsNullOrWhiteSpace is true for null, "" and "   ", so a Failed row always explains itself.
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new BusinessRuleException("A reason is required when a disbursement fails.");
+        }
+
+        // Check the length here so the caller gets a clear rule error, not a database truncation error.
+        if (reason.Length > MaxFailureReasonLength)
+        {
+            throw new BusinessRuleException($"The failure reason can be at most {MaxFailureReasonLength} characters.");
+        }
+
         Status = DisbursementStatus.Failed;
-        FailureReason = reason;   // PaidDate stays null: the money never went out.
+        FailureReason = reason.Trim();   // Trim removes leading/trailing spaces. PaidDate stays null: the money never went out.
     }
 }

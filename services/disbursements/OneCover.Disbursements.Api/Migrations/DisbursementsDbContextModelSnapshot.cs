@@ -50,6 +50,12 @@ namespace OneCover.Disbursements.Api.Migrations
                     b.Property<DateOnly?>("PaidDate")
                         .HasColumnType("date");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -60,7 +66,9 @@ namespace OneCover.Disbursements.Api.Migrations
                     b.HasIndex("ClaimId")
                         .IsUnique();
 
-                    b.HasIndex("MemberId");
+                    b.HasIndex("Status");
+
+                    b.HasIndex("MemberId", "DueDate");
 
                     b.ToTable("Disbursements");
                 });
