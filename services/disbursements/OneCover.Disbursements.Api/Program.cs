@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using OneCover.Disbursements.Api.Data;
 using OneCover.Disbursements.Api.Repositories;
+using OneCover.Disbursements.Api.Services;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -22,6 +23,13 @@ builder.Services.AddDbContext<DisbursementsDbContext>(options =>
 // "Scoped" = one repository instance per HTTP request, which matches the DbContext's lifetime.
 // When a class asks for IDisbursementRepository, DI hands it a DisbursementRepository.
 builder.Services.AddScoped<IDisbursementRepository, DisbursementRepository>();
+
+// TimeProvider.System is the real clock. Registered once as a "singleton" (one shared instance
+// for the whole app). Tests can replace it with a fake clock.
+builder.Services.AddSingleton(TimeProvider.System);
+
+// Scoped, like the repository: one service instance per HTTP request.
+builder.Services.AddScoped<IDisbursementService, DisbursementService>();
 
 
 // Add services to the container.
