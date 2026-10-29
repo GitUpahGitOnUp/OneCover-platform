@@ -191,8 +191,12 @@ dotnet run --project .\services\enrollment\OneCover.Enrollment.Api\OneCover.Enro
 
 In Development, each service applies its EF Core migrations at startup. Browse the OpenAPI
 documents at `http://localhost:5001/openapi/v1.json` and
-`http://localhost:5002/openapi/v1.json`. The API request examples are in the services'
-`.http` files. Stop either service with `Ctrl+C`; stop SQL Server with `docker stop onecover-sql`.
+`http://localhost:5002/openapi/v1.json`. For interactive API testing, open Scalar at
+`http://localhost:5001/scalar` (Identity) or `http://localhost:5002/scalar` (Enrollment).
+Use the Authorize controls to paste the bearer token returned by login; internal routes
+accept the configured `X-Internal-Api-Key`. The interactive API pages are Development-only.
+The API request examples are in the services' `.http` files. Stop either service with
+`Ctrl+C`; stop SQL Server with `docker stop onecover-sql`.
 
 The current estimate uses monthly plan rates annualized and divided by 26 pay periods.
 Non-disability plans are seeded with sample rates for all four coverage tiers; STD/LTD are

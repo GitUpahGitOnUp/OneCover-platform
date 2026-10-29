@@ -2,8 +2,11 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi;
 using Microsoft.IdentityModel.Tokens;
+using Scalar.AspNetCore;
 using OneCover.Enrollment.Api.Data;
 using OneCover.Enrollment.Api.Middleware;
 using OneCover.Enrollment.Api.Repositories;
@@ -29,7 +32,51 @@ builder.Services.AddDbContext<EnrollmentDbContext>(options =>
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer((document, _, _) =>
+    {
+        document.Components ??= new OpenApiComponents();
+        document.Components.SecuritySchemes ??=
+            new Dictionary<string, IOpenApiSecurityScheme>();
+        document.Components.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme
+        {
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            Description = "Paste the access token returned by Identity /api/auth/login."
+        };
+        document.Components.SecuritySchemes["InternalApiKey"] = new OpenApiSecurityScheme
+        {
+            Type = SecuritySchemeType.ApiKey,
+            Name = "X-Internal-Api-Key",
+            In = ParameterLocation.Header,
+            Description = "Shared key for service-to-service endpoints."
+        };
+        return Task.CompletedTask;
+    });
+    options.AddOperationTransformer((operation, context, _) =>
+    {
+        var isInternalEndpoint = context.Description.RelativePath?
+            .StartsWith("internal/", StringComparison.OrdinalIgnoreCase) == true;
+        var requiresBearer = context.Description.ActionDescriptor.EndpointMetadata
+            .OfType<IAuthorizeData>().Any();
+
+        if (isInternalEndpoint || requiresBearer)
+        {
+            operation.Security ??= [];
+            var requirement = new OpenApiSecurityRequirement();
+            requirement.Add(
+                new OpenApiSecuritySchemeReference(
+                    isInternalEndpoint ? "InternalApiKey" : "Bearer",
+                    context.Document),
+                []);
+            operation.Security.Add(requirement);
+        }
+
+        return Task.CompletedTask;
+    });
+});
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddHttpContextAccessor();
@@ -66,6 +113,11 @@ if (app.Environment.IsDevelopment())
     var db = scope.ServiceProvider.GetRequiredService<EnrollmentDbContext>();
     await db.Database.MigrateAsync();
     app.MapOpenApi();
+    app.MapScalarApiReference("/scalar", options =>
+        options.WithTitle("OneCover Enrollment API")
+            .AddHttpAuthentication("Bearer", scheme => scheme.Token = string.Empty)
+            .AddApiKeyAuthentication("InternalApiKey", scheme =>
+                scheme.Name = "X-Internal-Api-Key"));
 }
 
 app.UseHttpsRedirection();
