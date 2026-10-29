@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/contracts/">
+    <Project Path="contracts/OneCover.Contracts/OneCover.Contracts.csproj" />
+  </Folder>
+  <Folder Name="/services/claims/">
+    <Project Path="services/claims/OneCover.Claims.Api/OneCover.Claims.Api.csproj" />
+  </Folder>
+  <Folder Name="/services/disbursements/">
+    <Project Path="services/disbursements/OneCover.Disbursements.Api/OneCover.Disbursements.Api.csproj" />
+  </Folder>
+  <Folder Name="/services/enrollment/">
+    <Project Path="services/enrollment/OneCover.Enrollment.Api/OneCover.Enrollment.Api.csproj" />
+  </Folder>
+  <Folder Name="/services/identity/">
+    <Project Path="services/identity/OneCover.Identity.Api/OneCover.Identity.Api.csproj" />
+  </Folder>
+</Solution>
