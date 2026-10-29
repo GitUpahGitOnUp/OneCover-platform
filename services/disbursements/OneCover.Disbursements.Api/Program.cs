@@ -1,4 +1,22 @@
+using Microsoft.EntityFrameworkCore;
+using OneCover.Disbursements.Api.Data;
+using OneCover.Disbursements.Api.Repositories;
+
+
 var builder = WebApplication.CreateBuilder(args);
+
+// Register the DbContext in the dependency injection (DI) container, so any class that
+// asks for a DisbursementsDbContext in its constructor is given one automatically.
+// UseSqlServer = use the SQL Server provider.
+// GetConnectionString("DisbursementsDb") reads ConnectionStrings:DisbursementsDb from
+// configuration (user-secrets locally, an environment variable in Docker).
+builder.Services.AddDbContext<DisbursementsDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DisbursementsDb")));
+
+// "Scoped" = one repository instance per HTTP request, which matches the DbContext's lifetime.
+// When a class asks for IDisbursementRepository, DI hands it a DisbursementRepository.
+builder.Services.AddScoped<IDisbursementRepository, DisbursementRepository>();
+
 
 // Add services to the container.
 
