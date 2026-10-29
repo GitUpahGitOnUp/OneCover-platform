@@ -73,6 +73,7 @@ Gateway column = public path Angular calls. Auth: Anon / Any (logged in) / Membe
 | PUT | /api/plans/{id} | Admin | edit plan + rates |
 | DELETE | /api/plans/{id} | Admin | retire plan (soft) |
 | GET | /api/enrollments | Member | own enrollments, with estimated per-paycheck deduction |
+| GET | /api/enrollments/{id} | Member | one of the member's own enrollments (others return 404) |
 | POST | /api/enrollments | Member | enroll in plan + choose tier (eligibility checked) |
 | GET | /api/admin/enrollments/summary | Admin | counts for dashboard |
 | GET | /internal/enrollments/{id} | internal | owner, status, plan terms for Claims |
@@ -189,7 +190,8 @@ Never cut: JWT-only identity, service-owned databases, tier pricing, disbursemen
 ## 9. Open questions
 - Event transport: RabbitMQ or simpler?
 - Is Docker required by the assignment, or just compose for demo?
-- Which plan types get tiers: Dental, Vision, Accident, CriticalIllness get tiers; STD/LTD are EmployeeOnly. **Still open: Life and Pet.** Decide before building PlanRate.
-- Pay frequency for the deduction display (biweekly default?)
+- Which plan types get tiers: Dental, Vision, Accident, CriticalIllness, Life, and Pet use all four tiers; STD/LTD are EmployeeOnly.
+- Pay frequency for the deduction display: biweekly (26 pay periods/year).
+- Internal `/internal/**` calls use the configured `X-Internal-Api-Key` header and are not routed by the gateway.
 - ~~Exact fields on Identity's `/internal/members/{id}`~~ Decided, see the Identity endpoint table.
 - ~~Where FMLA eligibility lives~~ Decided: Identity (`/api/me`). Enrollment does not need it.
