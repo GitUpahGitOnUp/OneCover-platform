@@ -12,6 +12,9 @@ public interface IBenefitCalculator
     /// <param name="annualSalary">The member's annual salary (from Identity).</param>
     /// <param name="benefitPercent">The plan's benefit as a fraction, e.g. 0.60 for 60%.</param>
     /// <param name="weeklyMaximum">The most the plan pays per week.</param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The salary or maximum is negative, or the percent is outside 0 to 1 (for example 60 passed instead of 0.60).
+    /// </exception>
     decimal WeeklyBenefit(decimal annualSalary, decimal benefitPercent, decimal weeklyMaximum);
 
     /// <summary>
@@ -23,5 +26,7 @@ public interface IBenefitCalculator
     /// <param name="startDate">First day of leave.</param>
     /// <param name="endDate">Last day of leave.</param>
     /// <param name="eliminationDays">Unpaid waiting days at the start of the leave.</param>
+    /// <exception cref="ArgumentOutOfRangeException">The weekly benefit or the elimination days are negative.</exception>
+    /// <exception cref="ArgumentException">The end date is before the start date.</exception>
     decimal TotalBenefit(decimal weeklyBenefit, DateOnly startDate, DateOnly endDate, int eliminationDays);
 }

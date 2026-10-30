@@ -39,6 +39,46 @@ public class BenefitCalculatorTests
     }
 
     [Fact]
+    public void WeeklyBenefit_RoundsAHalfCentUp()
+    {
+        // 5,206.50 / 52 = exactly 100.125. Banker's rounding would give 100.12; money rounds the half UP to 100.13
+        var result = _calc.WeeklyBenefit(annualSalary: 5_206.50m, benefitPercent: 1m, weeklyMaximum: 1_500m);
+
+        Assert.Equal(100.13m, result);
+    }
+
+    // [Theory] runs the same test once per row. Each row is a bad input the calculator must refuse.
+    [Theory]
+    [InlineData(-1, 0.60, 1500)]      // negative salary
+    [InlineData(78000, -0.10, 1500)]  // negative percent
+    [InlineData(78000, 60, 1500)]     // 60 passed instead of 0.60
+    [InlineData(78000, 0.60, -1)]     // negative weekly maximum
+    public void WeeklyBenefit_Throws_ForInvalidInputs(double salary, double percent, double maximum)
+    {
+        // InlineData can't hold decimal values, so the rows use double and are converted here.
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            _calc.WeeklyBenefit((decimal)salary, (decimal)percent, (decimal)maximum));
+    }
+
+    [Fact]
+    public void TotalBenefit_Throws_WhenEndDateIsBeforeStartDate()
+    {
+        var start = new DateOnly(2026, 10, 10);
+
+        Assert.Throws<ArgumentException>(() =>
+            _calc.TotalBenefit(700m, start, start.AddDays(-1), eliminationDays: 7));
+    }
+
+    [Fact]
+    public void TotalBenefit_Throws_WhenEliminationDaysIsNegative()
+    {
+        var start = new DateOnly(2026, 10, 1);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            _calc.TotalBenefit(700m, start, start.AddDays(13), eliminationDays: -7));
+    }
+
+    [Fact]
     public void WeeklyBenefit_IsZero_ForNonDisabilityPlans()
     {
         // Plans that aren't STD/LTD have a 0 percent and a 0 max

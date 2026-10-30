@@ -48,7 +48,24 @@ public class ClaimWorkflowTests
     {
         var next = ClaimWorkflow.NextStatuses(ClaimStatus.InReview);
 
-        Assert.Equal([ClaimStatus.InfoRequested, ClaimStatus.Approved, ClaimStatus.Denied], next);
+        // Declared as an array first, so the comparison is clearly element by element
+        // and a mismatch shows both lists in the failure message.
+        ClaimStatus[] expected = [ClaimStatus.InfoRequested, ClaimStatus.Approved, ClaimStatus.Denied];
+        Assert.Equal(expected, next);
+    }
+
+    [Fact]
+    public void EveryStatusExceptClosed_HasAtLeastOneMove()
+    {
+        // The rulebook treats an unknown status as "no moves allowed". That is safe, but it means a status
+        // added to the enum and forgotten in the table would silently trap claims. Closed is the only status
+        // that is meant to have no moves, so any other status with none fails this test and says which one.
+        foreach (var status in Enum.GetValues<ClaimStatus>().Where(s => s != ClaimStatus.Closed))
+        {
+            Assert.True(
+                ClaimWorkflow.NextStatuses(status).Count > 0,
+                $"{status} has no allowed moves. Was it left out of ClaimWorkflow?");
+        }
     }
 
     [Fact]
