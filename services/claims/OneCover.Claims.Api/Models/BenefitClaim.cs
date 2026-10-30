@@ -14,6 +14,10 @@ namespace OneCover.Claims.Api.Models;
 /// </remarks>
 public class BenefitClaim
 {
+    /// <summary>Longest reason allowed. The database column uses the same limit.</summary>
+    // const = a value fixed at compile time. Shared by Submit and the DbContext so they cannot drift apart.
+    public const int MaxReasonLength = 1000;
+
     /// <summary>Database primary key. "set" is public so EF Core can fill it in after saving.</summary>
     public int Id { get; set; }
 
@@ -67,6 +71,15 @@ public class BenefitClaim
     /// <summary>When the claim was filed. Comes from TimeProvider, never from the client.</summary>
     public DateTimeOffset SubmittedAt { get; init; }
 
+    /// <summary>
+    /// Version stamp that SQL Server changes automatically on every update ("rowversion").
+    /// EF Core adds it to the WHERE clause of each UPDATE, so if another admin changed the claim after
+    /// we loaded it, our save fails with DbUpdateConcurrencyException instead of silently overwriting them.
+    /// This matters here because two admins could otherwise approve and deny the same claim at the same moment.
+    /// </summary>
+    // byte[] = raw bytes. "= []" starts as an empty array; the database fills in the real value.
+    public byte[] RowVersion { get; private set; } = [];
+
     // The real list of history rows. "private" so only this class can add to it.
     // "readonly" means the field can't be pointed at a different list, though items can still be added.
     // "[]" is an empty collection. EF Core finds this list by its naming convention (_ + the property name).
@@ -118,6 +131,13 @@ public class BenefitClaim
         DateTimeOffset submittedAt)
     {
         // Guard clauses: check each rule first and throw straight away, so the code below only runs for a valid claim.
+        // IsNullOrWhiteSpace is true for null, "" and "   ". The length limit matches the database column,
+        // so a too-long reason becomes a clear 409 instead of a database error.
+        if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length > MaxReasonLength)
+        {
+            throw new BusinessRuleException($"A claim needs a reason of 1 to {MaxReasonLength} characters.");
+        }
+
         if (endDate < startDate)
         {
             throw new BusinessRuleException("End date can't be before the start date.");
@@ -180,6 +200,12 @@ public class BenefitClaim
         if (!ClaimWorkflow.CanMove(Status, newStatus))
         {
             throw new BusinessRuleException($"Can't move a claim from {Status} to {newStatus}.");
+        }
+
+        // The note must fit its database column, so a too-long one is a clear 409 instead of a database error.
+        if (note is not null && note.Trim().Length > ClaimStatusHistory.MaxNoteLength)
+        {
+            throw new BusinessRuleException($"A note can be at most {ClaimStatusHistory.MaxNoteLength} characters.");
         }
 
         // 2. Record the change BEFORE updating Status, so FromStatus still holds the old value.

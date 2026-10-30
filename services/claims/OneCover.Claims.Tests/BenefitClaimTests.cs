@@ -70,6 +70,36 @@ public class BenefitClaimTests
         Assert.Equal("Broken leg", claim.Reason);
     }
 
+    // [Theory] runs the same test once per row. A blank reason is refused whether it is empty or only spaces.
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Submit_Throws_WhenTheReasonIsBlank(string reason)
+    {
+        Assert.Throws<BusinessRuleException>(() => Submit(reason: reason));
+    }
+
+    [Fact]
+    public void Submit_Throws_WhenTheReasonIsLongerThanTheDatabaseColumn()
+    {
+        var tooLong = new string('x', BenefitClaim.MaxReasonLength + 1);
+
+        Assert.Throws<BusinessRuleException>(() => Submit(reason: tooLong));
+    }
+
+    [Fact]
+    public void MoveTo_Throws_AndChangesNothing_WhenTheNoteIsTooLong()
+    {
+        var claim = Submit();
+        var tooLong = new string('x', ClaimStatusHistory.MaxNoteLength + 1);
+
+        Assert.Throws<BusinessRuleException>(() =>
+            claim.MoveTo(ClaimStatus.InReview, changedByUserId: 1, note: tooLong, changedAt: Now));
+
+        Assert.Equal(ClaimStatus.Submitted, claim.Status);
+        Assert.Single(claim.History);
+    }
+
     [Fact]
     public void Submit_Throws_WhenEndDateIsBeforeStartDate()
     {

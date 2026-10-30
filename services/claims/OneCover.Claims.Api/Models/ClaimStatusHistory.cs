@@ -10,6 +10,9 @@ namespace OneCover.Claims.Api.Models;
 // forge or edit the trail. "init" properties can be set when the row is created and never changed after.
 public class ClaimStatusHistory
 {
+    /// <summary>Longest admin note allowed. The database column uses the same limit.</summary>
+    public const int MaxNoteLength = 500;
+
     /// <summary>Database primary key. "set" is public so EF Core can fill it in after saving.</summary>
     public int Id { get; set; }
 
