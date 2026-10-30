@@ -70,11 +70,12 @@ public class ClaimsDbContext : DbContext
             // from the index. It also covers queries on MemberId alone.
             entity.HasIndex(c => new { c.MemberId, c.SubmittedAt });
 
-            // Index on Status for the admin list filtered by status (for example, all InReview).
-            entity.HasIndex(c => c.Status);
-
-            // Index on EnrollmentId so "claims against this enrollment" does not scan the whole table.
-            entity.HasIndex(c => c.EnrollmentId);
+            // Composite index on (Status, SubmittedAt) for the admin list: "all InReview claims, newest first".
+            // Status alone has only six values, so on its own it would rarely help. Paired with the date,
+            // the database can filter on Status and read the rows already sorted, with no extra sort step.
+            // There is deliberately no index on EnrollmentId yet: nothing queries by it. Add one in a later
+            // migration if a real query needs it, because every index slows down inserts and updates a little.
+            entity.HasIndex(c => new { c.Status, c.SubmittedAt });
         });
 
         // ---- ClaimStatusHistories table ----

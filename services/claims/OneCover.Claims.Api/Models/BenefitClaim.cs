@@ -18,8 +18,8 @@ public class BenefitClaim
     // const = a value fixed at compile time. Shared by Submit and the DbContext so they cannot drift apart.
     public const int MaxReasonLength = 1000;
 
-    /// <summary>Database primary key. "set" is public so EF Core can fill it in after saving.</summary>
-    public int Id { get; set; }
+    /// <summary>Database primary key. "private set": only EF Core (which uses reflection) fills it in after saving.</summary>
+    public int Id { get; private set; }
 
     /// <summary>
     /// The member who filed the claim. This is the user's id from the Identity service (the JWT "sub").
@@ -131,9 +131,28 @@ public class BenefitClaim
         DateTimeOffset submittedAt)
     {
         // Guard clauses: check each rule first and throw straight away, so the code below only runs for a valid claim.
-        // IsNullOrWhiteSpace is true for null, "" and "   ". The length limit matches the database column,
-        // so a too-long reason becomes a clear 409 instead of a database error.
-        if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length > MaxReasonLength)
+        // The ids must be real ids (database ids start at 1), so a default 0 from a bug is refused.
+        if (memberId <= 0 || enrollmentId <= 0)
+        {
+            throw new BusinessRuleException("A claim needs a valid member id and enrollment id.");
+        }
+
+        // The plan snapshot must make sense on its own. A percent is a fraction: 60 instead of 0.60 would also
+        // overflow the decimal(5,4) column and surface as a 500, so it is refused here with a clear message.
+        if (planBenefitPercent is <= 0m or > 1m)
+        {
+            throw new BusinessRuleException("The plan's benefit percent must be above 0 and at most 1 (0.60 means 60%).");
+        }
+
+        if (planWeeklyMaximum < 0 || planEliminationDays < 0)
+        {
+            throw new BusinessRuleException("The plan's weekly maximum and elimination days can't be negative.");
+        }
+
+        // Trim once and reuse it. IsNullOrWhiteSpace is true for null, "" and "   ". The length limit matches
+        // the database column, so a too-long reason becomes a clear 409 instead of a database error.
+        var trimmedReason = reason?.Trim() ?? string.Empty;
+        if (trimmedReason.Length == 0 || trimmedReason.Length > MaxReasonLength)
         {
             throw new BusinessRuleException($"A claim needs a reason of 1 to {MaxReasonLength} characters.");
         }
@@ -150,17 +169,36 @@ public class BenefitClaim
         }
 
         // Without an upper bound, an end date like 9999-12-31 would calculate a multi-million-dollar benefit.
-        // AddYears(1) moves the start date forward one year. Real STD plans cap far lower, so this is generous.
-        if (endDate > startDate.AddYears(1))
+        // Both the start and end day count as leave days, so a leave starting 2026-03-01 reaches one full year
+        // on 2027-02-28. An end date on or after startDate.AddYears(1) (2027-03-01) would be a year and a day.
+        // Real STD plans cap far lower, so this is generous.
+        if (endDate >= startDate.AddYears(1))
         {
             throw new BusinessRuleException("A single claim can't cover more than one year.");
+        }
+
+        // The amounts come from the benefit calculator, but this class does not trust them blindly: it checks
+        // that they fit the plan snapshot it is about to store, so a wrong amount can't reach Disbursements.
+        // The weekly benefit can never be negative or above the plan's weekly maximum.
+        if (weeklyBenefit < 0 || weeklyBenefit > planWeeklyMaximum)
+        {
+            throw new BusinessRuleException("The weekly benefit must be between 0 and the plan's weekly maximum.");
+        }
+
+        // The total can never be negative or more than the weekly benefit spread over EVERY day of the leave
+        // (the real total is lower, because the first elimination days are unpaid). Both end days count, hence + 1.
+        var leaveDays = endDate.DayNumber - startDate.DayNumber + 1;
+        var mostPossibleTotal = Math.Round(weeklyBenefit / 7m * leaveDays, 2, MidpointRounding.AwayFromZero);
+        if (totalBenefit < 0 || totalBenefit > mostPossibleTotal)
+        {
+            throw new BusinessRuleException("The total benefit can't be negative or more than the weekly benefit over the whole leave.");
         }
 
         var claim = new BenefitClaim
         {
             MemberId = memberId,
             EnrollmentId = enrollmentId,
-            Reason = reason.Trim(),   // Trim() removes spaces from both ends of the text
+            Reason = trimmedReason,
             StartDate = startDate,
             EndDate = endDate,
             PlanBenefitPercent = planBenefitPercent,
@@ -175,13 +213,12 @@ public class BenefitClaim
         // The first audit row. FromStatus is null because the claim did not exist before, and the member
         // filed it. We can add to _history here because we are INSIDE the class. On save, EF Core inserts
         // the claim first and then this row, filling in its ClaimId.
-        claim._history.Add(new ClaimStatusHistory
-        {
-            FromStatus = null,
-            ToStatus = ClaimStatus.Submitted,
-            ChangedByUserId = memberId,
-            ChangedAt = submittedAt
-        });
+        claim._history.Add(ClaimStatusHistory.Record(
+            fromStatus: null,
+            toStatus: ClaimStatus.Submitted,
+            changedByUserId: memberId,
+            changedAt: submittedAt,
+            note: null));
 
         return claim;
     }
@@ -202,22 +239,27 @@ public class BenefitClaim
             throw new BusinessRuleException($"Can't move a claim from {Status} to {newStatus}.");
         }
 
-        // The note must fit its database column, so a too-long one is a clear 409 instead of a database error.
-        if (note is not null && note.Trim().Length > ClaimStatusHistory.MaxNoteLength)
+        // The actor must be a real user id from the JWT, so the audit trail never records "user 0".
+        if (changedByUserId <= 0)
+        {
+            throw new BusinessRuleException("A status change needs a valid user id.");
+        }
+
+        // Trim once. A blank or whitespace-only note is stored as null instead of an empty string.
+        // The note must also fit its database column, so a too-long one is a clear 409 instead of a database error.
+        var trimmedNote = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+        if (trimmedNote is not null && trimmedNote.Length > ClaimStatusHistory.MaxNoteLength)
         {
             throw new BusinessRuleException($"A note can be at most {ClaimStatusHistory.MaxNoteLength} characters.");
         }
 
         // 2. Record the change BEFORE updating Status, so FromStatus still holds the old value.
-        _history.Add(new ClaimStatusHistory
-        {
-            FromStatus = Status,
-            ToStatus = newStatus,
-            ChangedByUserId = changedByUserId,
-            ChangedAt = changedAt,
-            // A blank or whitespace-only note is stored as null instead of an empty string.
-            Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim()
-        });
+        _history.Add(ClaimStatusHistory.Record(
+            fromStatus: Status,
+            toStatus: newStatus,
+            changedByUserId: changedByUserId,
+            changedAt: changedAt,
+            note: trimmedNote));
 
         // 3. Only now change the status. The private setter means this class is the ONLY place that can.
         Status = newStatus;

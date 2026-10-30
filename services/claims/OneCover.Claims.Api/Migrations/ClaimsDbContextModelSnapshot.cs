@@ -82,11 +82,9 @@ namespace OneCover.Claims.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("EnrollmentId");
-
-                    b.HasIndex("Status");
-
                     b.HasIndex("MemberId", "SubmittedAt");
+
+                    b.HasIndex("Status", "SubmittedAt");
 
                     b.ToTable("BenefitClaims");
                 });

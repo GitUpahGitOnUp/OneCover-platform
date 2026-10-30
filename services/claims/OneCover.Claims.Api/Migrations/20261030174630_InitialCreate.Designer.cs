@@ -12,7 +12,7 @@ using OneCover.Claims.Api.Data;
 namespace OneCover.Claims.Api.Migrations
 {
     [DbContext(typeof(ClaimsDbContext))]
-    [Migration("20261030173341_InitialCreate")]
+    [Migration("20261030174630_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -85,11 +85,9 @@ namespace OneCover.Claims.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("EnrollmentId");
-
-                    b.HasIndex("Status");
-
                     b.HasIndex("MemberId", "SubmittedAt");
+
+                    b.HasIndex("Status", "SubmittedAt");
 
                     b.ToTable("BenefitClaims");
                 });

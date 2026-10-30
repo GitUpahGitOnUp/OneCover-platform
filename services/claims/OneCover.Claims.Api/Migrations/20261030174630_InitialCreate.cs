@@ -61,19 +61,14 @@ namespace OneCover.Claims.Api.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_BenefitClaims_EnrollmentId",
-                table: "BenefitClaims",
-                column: "EnrollmentId");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_BenefitClaims_MemberId_SubmittedAt",
                 table: "BenefitClaims",
                 columns: new[] { "MemberId", "SubmittedAt" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_BenefitClaims_Status",
+                name: "IX_BenefitClaims_Status_SubmittedAt",
                 table: "BenefitClaims",
-                column: "Status");
+                columns: new[] { "Status", "SubmittedAt" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_ClaimStatusHistories_ClaimId",

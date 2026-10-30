@@ -13,11 +13,39 @@ public class ClaimStatusHistory
     /// <summary>Longest admin note allowed. The database column uses the same limit.</summary>
     public const int MaxNoteLength = 500;
 
-    /// <summary>Database primary key. "set" is public so EF Core can fill it in after saving.</summary>
-    public int Id { get; set; }
+    /// <summary>Database primary key. "private set": only EF Core (which uses reflection) fills it in after saving.</summary>
+    public int Id { get; private set; }
 
     /// <summary>The claim this row belongs to. EF Core fills it in when the claim is saved.</summary>
-    public int ClaimId { get; set; }
+    public int ClaimId { get; private set; }
+
+    // A PRIVATE constructor means other code can't write "new ClaimStatusHistory { ... }", so the audit trail
+    // can't be forged from a controller or service. EF Core can still call it when loading rows.
+    private ClaimStatusHistory()
+    {
+    }
+
+    /// <summary>
+    /// Builds one audit row. Called only by <see cref="BenefitClaim"/> (in Submit and MoveTo).
+    /// </summary>
+    // "internal" = visible inside this project only. It is the one door for creating a row, with a name
+    // that makes any other use stand out in code review.
+    internal static ClaimStatusHistory Record(
+        ClaimStatus? fromStatus,
+        ClaimStatus toStatus,
+        int changedByUserId,
+        DateTimeOffset changedAt,
+        string? note)
+    {
+        return new ClaimStatusHistory
+        {
+            FromStatus = fromStatus,
+            ToStatus = toStatus,
+            ChangedByUserId = changedByUserId,
+            ChangedAt = changedAt,
+            Note = note
+        };
+    }
 
     /// <summary>The status before the change. Null for the first row, because the claim did not exist yet.</summary>
     // The "?" makes the type nullable: it can hold a value or be empty (null).
