@@ -1,5 +1,3 @@
-using System.Security.Claims;
-
 namespace OneCover.Identity.Api.Services;
 
 public sealed class CurrentUser(IHttpContextAccessor httpContextAccessor) : ICurrentUser
@@ -8,7 +6,7 @@ public sealed class CurrentUser(IHttpContextAccessor httpContextAccessor) : ICur
     {
         get
         {
-            var value = httpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var value = httpContextAccessor.HttpContext?.User.FindFirst("sub")?.Value;
             return int.TryParse(value, out var userId)
                 ? userId
                 : throw new UnauthorizedAccessException("The authenticated user ID is missing.");
