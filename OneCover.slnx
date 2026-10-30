@@ -8,6 +8,7 @@
   </Folder>
   <Folder Name="/services/disbursements/">
     <Project Path="services/disbursements/OneCover.Disbursements.Api/OneCover.Disbursements.Api.csproj" />
+    <Project Path="services/disbursements/OneCover.Disbursements.Tests/OneCover.Disbursements.Tests.csproj" />
   </Folder>
   <Folder Name="/services/enrollment/">
     <Project Path="services/enrollment/OneCover.Enrollment.Api/OneCover.Enrollment.Api.csproj" />
