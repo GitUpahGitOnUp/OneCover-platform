@@ -66,7 +66,7 @@ public class DisbursementService : IDisbursementService
         // The repository only matches rows that also belong to this member, so someone else's
         // record comes back null and we answer "not found", the same as if it didn't exist.
         var disbursement = await _repository.GetByIdForMemberAsync(id, memberId)
-            ?? throw new NotFoundException($"Disbursement {id} was not found.");
+            ?? throw new NotFoundException("Disbursement", id);
 
         return disbursement.ToDto();
     }
@@ -85,7 +85,7 @@ public class DisbursementService : IDisbursementService
     public async Task<DisbursementDto> GetAsync(int id)
     {
         var disbursement = await _repository.GetByIdAsync(id)
-            ?? throw new NotFoundException($"Disbursement {id} was not found.");
+            ?? throw new NotFoundException("Disbursement", id);
 
         return disbursement.ToDto();
     }
@@ -95,7 +95,7 @@ public class DisbursementService : IDisbursementService
     {
         // Load the entity WITH tracking, so EF Core notices the changes we make to it below.
         var disbursement = await _repository.GetByIdAsync(id)
-            ?? throw new NotFoundException($"Disbursement {id} was not found.");
+            ?? throw new NotFoundException("Disbursement", id);
 
         // "switch" picks the branch that matches request.Status. The entity methods enforce the real rules
         // (only Pending can move, a reason is needed to fail), so this code only routes the request.
