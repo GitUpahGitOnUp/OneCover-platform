@@ -11,31 +11,43 @@ public class GlobalExceptionHandlerTests
     // Runs the handler against a fake HTTP request and returns what it would send back.
     // DefaultHttpContext is ASP.NET's ready-made fake request/response. The response body is an in-memory
     // stream, so we can read the JSON the handler wrote. NullLogger is a logger that discards its messages.
-    private static async Task<(int Status, string? ContentType, JsonElement Body, bool Handled)> Handle(Exception exception)
+    private static async Task<(int Status, string? ContentType, JsonElement Body, bool Handled)> Handle(
+        Exception exception, DefaultHttpContext? context = null)
     {
-        var context = new DefaultHttpContext();
+        context ??= new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
         var handler = new GlobalExceptionHandler(NullLogger<GlobalExceptionHandler>.Instance);
 
         var handled = await handler.TryHandleAsync(context, exception, CancellationToken.None);
 
-        // Rewind the stream to the start, then read what the handler wrote.
+        // Rewind the stream to the start. If the handler wrote a body, read it; otherwise return an empty JSON value.
         context.Response.Body.Position = 0;
-        var body = await JsonDocument.ParseAsync(context.Response.Body);
+        var body = context.Response.Body.Length == 0
+            ? default
+            : (await JsonDocument.ParseAsync(context.Response.Body)).RootElement.Clone();
 
-        return (context.Response.StatusCode, context.Response.ContentType, body.RootElement.Clone(), handled);
+        return (context.Response.StatusCode, context.Response.ContentType, body, handled);
     }
 
     // Each test below throws one kind of exception at the handler and checks the status, title and detail.
     [Fact]
     public async Task NotFoundException_BecomesA404()
     {
-        var result = await Handle(new NotFoundException("Claim 5 was not found."));
+        var result = await Handle(new NotFoundException("Claim", 5));
 
         Assert.True(result.Handled);
         Assert.Equal(404, result.Status);
         Assert.Equal("Not found", result.Body.GetProperty("title").GetString());
         Assert.Equal("Claim 5 was not found.", result.Body.GetProperty("detail").GetString());
+    }
+
+    [Fact]
+    public void NotFoundException_HasOneFixedMessage_SoMissingAndNotYoursLookTheSame()
+    {
+        // The message is built from the resource and id only, so there is no way to word it differently
+        // for "doesn't exist" and "belongs to someone else".
+        Assert.Equal(new NotFoundException("Claim", 5).Message, new NotFoundException("Claim", 5).Message);
+        Assert.Equal("Claim 5 was not found.", new NotFoundException("Claim", 5).Message);
     }
 
     [Fact]
@@ -49,12 +61,16 @@ public class GlobalExceptionHandlerTests
     }
 
     [Fact]
-    public async Task UnauthorizedAccessException_BecomesA401()
+    public async Task UnauthorizedAccessException_BecomesA401_WithAFixedDetail()
     {
-        var result = await Handle(new UnauthorizedAccessException("The token does not contain a valid user id."));
+        // .NET itself throws UnauthorizedAccessException for things like file permissions, so its message
+        // (which could name a path) must never be echoed to the client.
+        var result = await Handle(new UnauthorizedAccessException(@"Access to the path 'C:\secret\file.txt' is denied."));
 
         Assert.Equal(401, result.Status);
         Assert.Equal("Unauthorized", result.Body.GetProperty("title").GetString());
+        Assert.Equal("A valid token is required.", result.Body.GetProperty("detail").GetString());
+        Assert.DoesNotContain("secret", result.Body.GetRawText());
     }
 
     [Fact]
@@ -73,8 +89,45 @@ public class GlobalExceptionHandlerTests
     [Fact]
     public async Task EveryResponse_UsesTheProblemJsonContentType()
     {
-        var result = await Handle(new NotFoundException("x"));
+        var result = await Handle(new NotFoundException("Claim", 1));
 
         Assert.StartsWith("application/problem+json", result.ContentType);
+    }
+
+    [Fact]
+    public async Task EveryResponse_CarriesTheRequestPathAndATraceId()
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Path = "/api/claims/5";
+
+        var result = await Handle(new NotFoundException("Claim", 5), context);
+
+        Assert.Equal("/api/claims/5", result.Body.GetProperty("instance").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(result.Body.GetProperty("traceId").GetString()));
+    }
+
+    [Fact]
+    public async Task ACancelledRequest_IsNotReportedAsAServerError()
+    {
+        // Simulate the client hanging up: RequestAborted is already cancelled when the exception arrives.
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+        var context = new DefaultHttpContext { RequestAborted = cts.Token };
+
+        var result = await Handle(new OperationCanceledException(), context);
+
+        Assert.True(result.Handled);
+        Assert.Equal(499, result.Status);
+        Assert.Equal(JsonValueKind.Undefined, result.Body.ValueKind);   // no body was written
+    }
+
+    [Fact]
+    public async Task ACancellationNotCausedByTheClient_IsStillAServerError()
+    {
+        // An OperationCanceledException while the client is still connected (for example a timeout inside
+        // the service) is not a client abort, so it must not be hidden behind a 499.
+        var result = await Handle(new OperationCanceledException());
+
+        Assert.Equal(500, result.Status);
     }
 }
