@@ -40,6 +40,9 @@ public static class DevTokenEndpoint
             // CreateToken turns the descriptor into the final "xxxxx.yyyyy.zzzzz" token string.
             return Results.Ok(new { token = new JsonWebTokenHandler().CreateToken(descriptor) });
         })
+        .WithTags("Development")
+        .WithSummary("Create a development JWT for API testing")
+        .WithDescription("Development only. Request a token with role Member or Admin, then paste it into Scalar's Authorize dialog.")
         .AllowAnonymous();   // this endpoint itself needs no login
     }
 }

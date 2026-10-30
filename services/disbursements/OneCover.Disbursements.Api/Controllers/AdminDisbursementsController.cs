@@ -24,6 +24,8 @@ public class AdminDisbursementsController : ControllerBase
     /// <param name="status">Optional filter: Pending, Paid or Failed. Leave out for all.</param>
     /// <param name="page">Page number, starting at 1.</param>
     /// <param name="pageSize">Rows per page (maximum 100).</param>
+    [EndpointSummary("List disbursements as an admin")]
+    [EndpointDescription("Requires an Admin JWT. Optionally filter by Pending, Paid, or Failed status.")]
     [HttpGet]
     public async Task<ActionResult<List<DisbursementDto>>> List(
         [FromQuery] DisbursementStatus? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
@@ -33,6 +35,8 @@ public class AdminDisbursementsController : ControllerBase
 
     /// <summary>Gets any disbursement by id. Returns 404 if it doesn't exist.</summary>
     /// <param name="id">The disbursement's id.</param>
+    [EndpointSummary("Get any disbursement as an admin")]
+    [EndpointDescription("Requires an Admin JWT.")]
     [HttpGet("{id:int}")]
     public async Task<ActionResult<DisbursementDto>> Get(int id)
     {
@@ -42,6 +46,8 @@ public class AdminDisbursementsController : ControllerBase
     /// <summary>Marks a Pending disbursement as Paid or Failed.</summary>
     /// <param name="id">The disbursement's id.</param>
     /// <param name="request">The new status, plus a reason when failing.</param>
+    [EndpointSummary("Update a disbursement's status")]
+    [EndpointDescription("Requires an Admin JWT. Only Pending disbursements can be changed to Paid or Failed; Failed requires a reason.")]
     // [HttpPut("{id:int}/status")] = answers PUT /api/admin/disbursements/7/status
     // The request body (JSON) is automatically turned into an UpdateDisbursementStatusRequest object.
     [HttpPut("{id:int}/status")]

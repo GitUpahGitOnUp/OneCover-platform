@@ -26,6 +26,8 @@ public class DisbursementsController : ControllerBase
     /// <summary>Lists the signed-in member's disbursements, newest due date first.</summary>
     /// <param name="page">Page number, starting at 1.</param>
     /// <param name="pageSize">Rows per page (maximum 100).</param>
+    [EndpointSummary("List the authenticated member's disbursements")]
+    [EndpointDescription("Requires a Member JWT. Members only see their own disbursements.")]
     // [HttpGet] = answers GET /api/disbursements. page/pageSize come from the query string:
     // /api/disbursements?page=2&pageSize=20
     [HttpGet]
@@ -40,6 +42,8 @@ public class DisbursementsController : ControllerBase
 
     /// <summary>Gets one of the signed-in member's disbursements. Returns 404 if it isn't theirs.</summary>
     /// <param name="id">The disbursement's id.</param>
+    [EndpointSummary("Get one of the authenticated member's disbursements")]
+    [EndpointDescription("Requires a Member JWT. Returns 404 if the disbursement is missing or belongs to another member.")]
     // {id} in the route is filled in from the URL: GET /api/disbursements/7 -> id = 7
     [HttpGet("{id:int}")]
     public async Task<ActionResult<DisbursementDto>> Get(int id)

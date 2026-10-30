@@ -1,8 +1,11 @@
 using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi;
 using Microsoft.IdentityModel.Tokens;
+using Scalar.AspNetCore;
 using OneCover.Disbursements.Api.Data;
 using OneCover.Disbursements.Api.Errors;
 using OneCover.Disbursements.Api.Repositories;
@@ -71,7 +74,40 @@ builder.Services.AddControllers()
     // Send and accept enums as readable text ("Paid") instead of numbers (1).
     .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer((document, _, _) =>
+    {
+        document.Components ??= new OpenApiComponents();
+        document.Components.SecuritySchemes ??=
+            new Dictionary<string, IOpenApiSecurityScheme>();
+        document.Components.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme
+        {
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            Description = "Paste a JWT with a sub claim and Member or Admin role."
+        };
+        return Task.CompletedTask;
+    });
+    options.AddOperationTransformer((operation, context, _) =>
+    {
+        var requiresBearer = context.Description.ActionDescriptor.EndpointMetadata
+            .OfType<IAuthorizeData>().Any();
+
+        if (requiresBearer)
+        {
+            operation.Security ??= [];
+            var requirement = new OpenApiSecurityRequirement();
+            requirement.Add(
+                new OpenApiSecuritySchemeReference("Bearer", context.Document),
+                []);
+            operation.Security.Add(requirement);
+        }
+
+        return Task.CompletedTask;
+    });
+});
 
 var app = builder.Build();
 
@@ -82,6 +118,9 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.MapDevToken();       // the test-token endpoint exists ONLY in Development
+    app.MapScalarApiReference("/scalar", options =>
+        options.WithTitle("OneCover Disbursements API")
+            .AddHttpAuthentication("Bearer", scheme => scheme.Token = string.Empty));
 }
 
 app.UseHttpsRedirection();
