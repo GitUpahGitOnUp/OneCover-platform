@@ -4,6 +4,7 @@
   </Folder>
   <Folder Name="/services/claims/">
     <Project Path="services/claims/OneCover.Claims.Api/OneCover.Claims.Api.csproj" />
+    <Project Path="services/claims/OneCover.Claims.Tests/OneCover.Claims.Tests.csproj" />
   </Folder>
   <Folder Name="/services/disbursements/">
     <Project Path="services/disbursements/OneCover.Disbursements.Api/OneCover.Disbursements.Api.csproj" />
