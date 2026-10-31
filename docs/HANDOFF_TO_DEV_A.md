@@ -1,6 +1,6 @@
 # Developer B -> Developer A: running checklist
 
-Last updated: 2026-10-31 (after Claims step 3). Developer B keeps this list current. Tick an item (`[x]`) when it is done, and add new ones at the
+Last updated: 2026-10-31 (after the payout alert). Developer B keeps this list current. Tick an item (`[x]`) when it is done, and add new ones at the
 bottom of the right section. Changes to this file go through a PR you both approve, like the rest of `docs/`.
 
 ## 1. Pull requests waiting for your review
@@ -27,6 +27,10 @@ Please review in this order. CI first, because once it is merged every later PR 
       `GET /api/admin/claims/{id}`, `PUT /api/admin/claims/{id}/status` (Admin role). Approving sends `ClaimApproved` to Disbursements
       over HTTP with retries. **Built on top of PR 6** (which is on top of PR 4): merge 4, then 6, then 7.
       Tested end to end with both services running: the Pending disbursement appears, and a second delivery creates no duplicate.
+- [ ] 8. Claims payout alert (`feature/claims-payout-alert`): flags approved claims whose payout Disbursements never confirmed.
+      Adds a column to Claims' own table (migration `AddPayoutRequestedAt`, nullable, B owns it), `GET /api/admin/claims/summary`
+      (counts per status + `awaitingPayoutCount`), a `?awaitingPayout=true` list filter, and `POST /api/admin/claims/{id}/resend-payout`.
+      **Built on top of PR 7**: merge 4, 6, 7, then 8. Tested with both services running, including Disbursements down (503, flag stays).
 
 Note on CI: it deliberately has **no path filters**. A required check that a path filter skips stays "pending" forever and blocks
 the PR. The whole solution builds in well under a minute, so one job is simpler. Tell B if you want filters anyway.
@@ -58,8 +62,7 @@ the PR. The whole solution builds in well under a minute, so one job is simpler.
 
 - [ ] **Gateway routes** (default JWT policy). Do **not** route `/internal/**`:
   - `/api/disbursements/**` and `/api/admin/disbursements/**` -> Disbursements (this already covers `/summary`)
-  - `/api/claims/**` and `/api/admin/claims/**` -> Claims (`/api/claims` is built, see PR 6; admin routes and
-    `/api/admin/claims/summary` are coming)
+  - `/api/claims/**` and `/api/admin/claims/**` -> Claims (all built now, see PRs 6, 7 and 8; this covers `/summary` and `/resend-payout`)
 - [ ] **docker-compose settings per service** (env vars, never in source control):
 
   | Service | Port | Env vars |
@@ -87,10 +90,15 @@ No action needed unless you disagree.
 - Disbursement due date = approval date + 7 days (one constant in `DisbursementService`).
 - A claim with a total benefit of 0 (a leave no longer than the elimination period) **cannot be approved**; it can only be denied.
   Disbursements refuses an amount of 0, so approving it would promise a payout that can never be created.
-- **Known gap, please say if you accept it:** Claims saves the approval first and then sends `ClaimApproved` (3 tries, short waits).
-  If Disbursements stays down through all 3 tries, the claim stays Approved, the admin still sees success, an error is logged,
+- **Known gap (partly handled, please say if you accept the rest):** Claims saves the approval first and then sends `ClaimApproved`
+  (3 tries, short waits). If Disbursements stays down through all 3 tries, the claim stays Approved, the admin still sees success,
   and **no disbursement is created** until someone re-sends the event. Disbursements is idempotent, so a re-send is safe.
-  The proper fix is an outbox table plus a background re-sender (more work). Cheaper options: an admin "re-send" endpoint, or
-  accept it for this project. Not built yet.
+  PR 8 makes this **visible and fixable**: such claims are flagged (`awaitingPayoutCount` on the summary, a filter on the list) and an
+  admin can click "Re-send payout". It is still manual: nobody is paged. The fully automatic fix is an outbox table plus a background
+  re-sender (not built; B estimates 20-30 minutes if you want it).
+- **For the dashboard (Angular, later):** show `awaitingPayoutCount` from `/api/admin/claims/summary` as a warning badge when it is above 0,
+  linking to the claims list filtered with `?awaitingPayout=true`, with a "Re-send payout" button per row.
+- Claims that were approved **before** PR 8's column existed show as awaiting payout until re-sent (re-sending is harmless). This only
+  affects B's local dev data; there is no real data yet.
 - **Open design question for the owner:** should the person who filed a claim be barred from approving it themselves?
   Not in any doc, so not implemented.
