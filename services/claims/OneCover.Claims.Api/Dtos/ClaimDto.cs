@@ -22,6 +22,8 @@ namespace OneCover.Claims.Api.Dtos;
 /// <param name="WeeklyBenefit">Weekly benefit, calculated once by the server at filing.</param>
 /// <param name="TotalBenefit">Total benefit for the leave after the unpaid waiting days, calculated once at filing.</param>
 /// <param name="SubmittedAt">When the claim was filed.</param>
+/// <param name="PayoutRequestedAt">When Disbursements confirmed it received the approval. Null until then.</param>
+/// <param name="AwaitingPayout">True if the claim was approved but Disbursements has not confirmed yet. The dashboard flags these.</param>
 /// <param name="NextStatuses">The statuses the workflow allows next. The admin "Move to..." choices.</param>
 /// <param name="History">The audit trail of status changes, oldest first.</param>
 public record ClaimDto(
@@ -38,5 +40,7 @@ public record ClaimDto(
     decimal WeeklyBenefit,
     decimal TotalBenefit,
     DateTimeOffset SubmittedAt,
+    DateTimeOffset? PayoutRequestedAt,
+    bool AwaitingPayout,
     IReadOnlyList<ClaimStatus> NextStatuses,
     IReadOnlyList<ClaimHistoryDto> History);

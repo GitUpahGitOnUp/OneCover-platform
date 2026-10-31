@@ -41,6 +41,7 @@ public class GlobalExceptionHandler : IExceptionHandler
             NotFoundException => (StatusCodes.Status404NotFound, "Not found"),
             BusinessRuleException => (StatusCodes.Status409Conflict, "Business rule violated"),
             UnauthorizedAccessException => (StatusCodes.Status401Unauthorized, "Unauthorized"),
+            ServiceUnavailableException => (StatusCodes.Status503ServiceUnavailable, "Service unavailable"),
             _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred")
         };
 
@@ -59,7 +60,7 @@ public class GlobalExceptionHandler : IExceptionHandler
             //   500 -> nothing, so internal details never leak.
             //   401 -> a fixed sentence. UnauthorizedAccessException is also thrown by .NET itself (for example
             //          on a file permission problem), and its message must not reach the client.
-            //   404/409 -> our own messages, which are written to be safe to show.
+            //   404/409/503 -> our own messages, which are written to be safe to show.
             Detail = status switch
             {
                 StatusCodes.Status500InternalServerError => null,

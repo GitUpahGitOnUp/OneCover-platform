@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using OneCover.Claims.Api.Clients;
 using OneCover.Claims.Api.Data;
 using OneCover.Claims.Api.Dtos;
@@ -42,7 +43,9 @@ public class AdminClaimServiceTests
         public Task<BenefitClaim?> GetByIdAsync(int id) => inner.GetByIdAsync(id);
         public Task<BenefitClaim?> GetByIdForMemberAsync(int id, int memberId) => inner.GetByIdForMemberAsync(id, memberId);
         public Task<List<BenefitClaim>> ListForMemberAsync(int memberId, int skip = 0, int take = 50) => inner.ListForMemberAsync(memberId, skip, take);
-        public Task<List<BenefitClaim>> ListAllAsync(ClaimStatus? status = null, int skip = 0, int take = 50) => inner.ListAllAsync(status, skip, take);
+        public Task<List<BenefitClaim>> ListAllAsync(ClaimStatus? status = null, int skip = 0, int take = 50, bool awaitingPayoutOnly = false) => inner.ListAllAsync(status, skip, take, awaitingPayoutOnly);
+        public Task<Dictionary<ClaimStatus, int>> CountByStatusAsync() => inner.CountByStatusAsync();
+        public Task<int> CountAwaitingPayoutAsync() => inner.CountAwaitingPayoutAsync();
         public Task AddAsync(BenefitClaim claim) => inner.AddAsync(claim);
         public Task SaveChangesAsync() => throw new DbUpdateConcurrencyException("someone else got there first");
     }
@@ -50,7 +53,7 @@ public class AdminClaimServiceTests
     private static ClaimsDbContext OpenDb(string name) =>
         new(new DbContextOptionsBuilder<ClaimsDbContext>().UseInMemoryDatabase(name).Options);
 
-    private static AdminClaimService NewService(string db, FakePublisher publisher, bool conflict = false)
+    private static AdminClaimService NewService(string db, FakePublisher publisher, bool conflict = false, DateTimeOffset? now = null)
     {
         IClaimRepository repository = new ClaimRepository(OpenDb(db));
         if (conflict)
@@ -58,7 +61,7 @@ public class AdminClaimServiceTests
             repository = new ConflictingRepository(repository);
         }
 
-        return new AdminClaimService(repository, publisher, new FixedClock(Now));
+        return new AdminClaimService(repository, publisher, new FixedClock(now ?? Now), NullLogger<AdminClaimService>.Instance);
     }
 
     // Files a claim straight into the database. totalBenefit 0 models a leave that is all elimination days.
@@ -220,5 +223,174 @@ public class AdminClaimServiceTests
 
         Assert.Equal(2, everything.Count);
         Assert.Equal([first], reviewing.Select(c => c.Id));
+    }
+
+    // ---- The payout alert: approved claims Disbursements has not confirmed ----
+
+    // Files a claim, moves it to InReview, then approves it with the given publisher. Returns the claim id.
+    private static async Task<int> ApproveWith(string db, FakePublisher publisher, int memberId = 42)
+    {
+        var id = await FileClaim(db, memberId);
+        var service = NewService(db, publisher);
+        await service.UpdateStatusAsync(id, 900, To(ClaimStatus.InReview));
+        await service.UpdateStatusAsync(id, 900, To(ClaimStatus.Approved));
+        return id;
+    }
+
+    [Fact]
+    public async Task AnApprovalDisbursementsAccepted_IsNotFlagged_AndRecordsWhen()
+    {
+        var db = Guid.NewGuid().ToString();
+        var id = await ApproveWith(db, new FakePublisher(succeeds: true));
+
+        var saved = await new ClaimRepository(OpenDb(db)).GetByIdAsync(id);
+
+        Assert.False(saved!.AwaitingPayout);
+        Assert.Equal(Now, saved.PayoutRequestedAt);
+    }
+
+    [Fact]
+    public async Task AnApprovalDisbursementsNeverReceived_IsFlaggedAsAwaitingPayout()
+    {
+        var db = Guid.NewGuid().ToString();
+        var id = await ApproveWith(db, new FakePublisher(succeeds: false));
+
+        var admin = await NewService(db, new FakePublisher()).GetAsync(id);
+
+        Assert.Equal(ClaimStatus.Approved, admin.Status);
+        Assert.True(admin.AwaitingPayout);
+        Assert.Null(admin.PayoutRequestedAt);
+    }
+
+    [Fact]
+    public async Task AClaimThatWasNeverApproved_IsNeverFlagged()
+    {
+        var db = Guid.NewGuid().ToString();
+        var id = await FileClaim(db);
+
+        var claim = await NewService(db, new FakePublisher()).GetAsync(id);
+
+        Assert.False(claim.AwaitingPayout);
+    }
+
+    [Fact]
+    public async Task Resend_ClearsTheFlag_AndKeepsTheOriginalApprovalDate()
+    {
+        var db = Guid.NewGuid().ToString();
+        var id = await ApproveWith(db, new FakePublisher(succeeds: false));   // approved on 2026-10-20, never delivered
+        var publisher = new FakePublisher(succeeds: true);
+
+        // Five days later an admin clicks "Re-send payout".
+        var claim = await NewService(db, publisher, now: Now.AddDays(5)).ResendPayoutAsync(id);
+
+        // The due date at Disbursements is worked out from ApprovedOn, so it must still be the REAL approval date.
+        var sent = Assert.Single(publisher.Published);
+        Assert.Equal(new DateOnly(2026, 10, 20), sent.ApprovedOn);
+        Assert.False(claim.AwaitingPayout);
+        Assert.Equal(Now.AddDays(5), claim.PayoutRequestedAt);
+    }
+
+    [Fact]
+    public async Task Resend_WhenDisbursementsIsStillDown_Fails503_AndLeavesTheFlagOn()
+    {
+        var db = Guid.NewGuid().ToString();
+        var id = await ApproveWith(db, new FakePublisher(succeeds: false));
+
+        await Assert.ThrowsAsync<ServiceUnavailableException>(() =>
+            NewService(db, new FakePublisher(succeeds: false)).ResendPayoutAsync(id));
+
+        var saved = await new ClaimRepository(OpenDb(db)).GetByIdAsync(id);
+        Assert.True(saved!.AwaitingPayout);
+    }
+
+    [Fact]
+    public async Task Resend_IsRefused_WhenThePayoutWasAlreadyConfirmed_WithoutBotheringDisbursements()
+    {
+        var db = Guid.NewGuid().ToString();
+        var id = await ApproveWith(db, new FakePublisher(succeeds: true));
+        var publisher = new FakePublisher();
+
+        await Assert.ThrowsAsync<BusinessRuleException>(() => NewService(db, publisher).ResendPayoutAsync(id));
+
+        Assert.Empty(publisher.Published);
+    }
+
+    [Fact]
+    public async Task Resend_IsRefused_ForAClaimThatWasNeverApproved()
+    {
+        var db = Guid.NewGuid().ToString();
+        var id = await FileClaim(db);
+        var publisher = new FakePublisher();
+
+        await Assert.ThrowsAsync<BusinessRuleException>(() => NewService(db, publisher).ResendPayoutAsync(id));
+
+        Assert.Empty(publisher.Published);
+    }
+
+    [Fact]
+    public async Task Resend_OfAMissingClaim_Is404()
+    {
+        var service = NewService(Guid.NewGuid().ToString(), new FakePublisher());
+
+        await Assert.ThrowsAsync<NotFoundException>(() => service.ResendPayoutAsync(12345));
+    }
+
+    [Fact]
+    public async Task AnApprovedClaimThatWasThenClosed_IsStillFlagged_AndCanStillBeResent()
+    {
+        var db = Guid.NewGuid().ToString();
+        var id = await ApproveWith(db, new FakePublisher(succeeds: false));
+        // Closing it changes Status to Closed, so Status alone would hide the problem. The history still shows it was approved.
+        await NewService(db, new FakePublisher()).UpdateStatusAsync(id, 900, To(ClaimStatus.Closed));
+        var publisher = new FakePublisher(succeeds: true);
+
+        var flagged = await NewService(db, publisher).ListAllAsync(status: null, page: 1, pageSize: 50, awaitingPayoutOnly: true);
+        var resent = await NewService(db, publisher).ResendPayoutAsync(id);
+
+        Assert.Equal([id], flagged.Select(c => c.Id));
+        Assert.Equal(ClaimStatus.Closed, flagged.Single().Status);
+        Assert.False(resent.AwaitingPayout);
+    }
+
+    [Fact]
+    public async Task TheAwaitingPayoutList_ShowsOnlyTheClaimsThatNeedAttention()
+    {
+        var db = Guid.NewGuid().ToString();
+        var needsAttention = await ApproveWith(db, new FakePublisher(succeeds: false), memberId: 1);
+        await ApproveWith(db, new FakePublisher(succeeds: true), memberId: 2);   // delivered, fine
+        await FileClaim(db, memberId: 3);                                        // never approved
+
+        var flagged = await NewService(db, new FakePublisher()).ListAllAsync(null, 1, 50, awaitingPayoutOnly: true);
+
+        Assert.Equal([needsAttention], flagged.Select(c => c.Id));
+    }
+
+    [Fact]
+    public async Task TheSummary_CountsEveryStatus_IncludingZeros_AndTheAwaitingPayoutWarning()
+    {
+        var db = Guid.NewGuid().ToString();
+        await ApproveWith(db, new FakePublisher(succeeds: false), memberId: 1);   // Approved, flagged
+        await ApproveWith(db, new FakePublisher(succeeds: true), memberId: 2);    // Approved, fine
+        await FileClaim(db, memberId: 3);                                         // Submitted
+
+        var summary = await NewService(db, new FakePublisher()).GetSummaryAsync();
+
+        Assert.Equal(3, summary.TotalClaims);
+        Assert.Equal(1, summary.AwaitingPayoutCount);
+        // Every status is listed, in workflow order, even the ones nobody has.
+        Assert.Equal(Enum.GetValues<ClaimStatus>(), summary.ClaimsByStatus.Select(x => x.Status));
+        Assert.Equal(1, summary.ClaimsByStatus.Single(x => x.Status == ClaimStatus.Submitted).Count);
+        Assert.Equal(2, summary.ClaimsByStatus.Single(x => x.Status == ClaimStatus.Approved).Count);
+        Assert.Equal(0, summary.ClaimsByStatus.Single(x => x.Status == ClaimStatus.Denied).Count);
+    }
+
+    [Fact]
+    public async Task TheSummary_OfAnEmptyDatabase_IsAllZeros()
+    {
+        var summary = await NewService(Guid.NewGuid().ToString(), new FakePublisher()).GetSummaryAsync();
+
+        Assert.Equal(0, summary.TotalClaims);
+        Assert.Equal(0, summary.AwaitingPayoutCount);
+        Assert.All(summary.ClaimsByStatus, x => Assert.Equal(0, x.Count));
     }
 }

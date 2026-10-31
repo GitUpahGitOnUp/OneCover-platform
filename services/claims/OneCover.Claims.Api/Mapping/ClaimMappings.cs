@@ -25,6 +25,8 @@ public static class ClaimMappings
         WeeklyBenefit: c.WeeklyBenefit,
         TotalBenefit: c.TotalBenefit,
         SubmittedAt: c.SubmittedAt,
+        PayoutRequestedAt: c.PayoutRequestedAt,
+        AwaitingPayout: c.AwaitingPayout,
         // Ask the workflow rulebook which moves are allowed from the current status.
         NextStatuses: ClaimWorkflow.NextStatuses(c.Status),
         // LINQ chain over the claim's history:

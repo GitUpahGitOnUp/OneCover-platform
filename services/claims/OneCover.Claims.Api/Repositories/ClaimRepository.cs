@@ -53,7 +53,8 @@ public class ClaimRepository : IClaimRepository
     }
 
     /// <inheritdoc />
-    public async Task<List<BenefitClaim>> ListAllAsync(ClaimStatus? status = null, int skip = 0, int take = 50)
+    public async Task<List<BenefitClaim>> ListAllAsync(
+        ClaimStatus? status = null, int skip = 0, int take = 50, bool awaitingPayoutOnly = false)
     {
         // IQueryable = a query that is described but not yet run. We can keep adding to it.
         IQueryable<BenefitClaim> query = _db.BenefitClaims
@@ -66,12 +67,43 @@ public class ClaimRepository : IClaimRepository
             query = query.Where(c => c.Status == status);   // keep only claims with this status
         }
 
+        // Only add the payout filter if asked: "approved at some point AND Disbursements has not confirmed".
+        // Status alone can't find these, because an approved claim moves on to Closed, so we look for the Approved row
+        // in its history: c.History.Any(...) = at least one history row matches (SQL: EXISTS).
+        if (awaitingPayoutOnly)
+        {
+            query = query.Where(c => c.PayoutRequestedAt == null && c.History.Any(h => h.ToStatus == ClaimStatus.Approved));
+        }
+
         return await query
             .OrderByDescending(c => c.SubmittedAt)   // newest first (the (Status, SubmittedAt) index serves the filtered case)
             .ThenByDescending(c => c.Id)             // stable paging tie-breaker
             .Skip(skip)                              // jump over earlier pages
             .Take(take)                              // keep at most one page
             .ToListAsync();                          // run the SQL and return a List
+    }
+
+    /// <inheritdoc />
+    public async Task<Dictionary<ClaimStatus, int>> CountByStatusAsync()
+    {
+        // LINQ chain (runs as ONE SQL "GROUP BY" query):
+        //   .GroupBy(c => c.Status)                    = put claims with the same status in one group
+        //   .Select(g => new { g.Key, Count = ... })   = for each group, keep its status (Key) and how many are in it
+        //   .ToDictionaryAsync(x => x.Key, x => x.Count) = run the query and return a lookup: status -> count
+        return await _db.BenefitClaims
+            .AsNoTracking()
+            .GroupBy(c => c.Status)
+            .Select(g => new { g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Key, x => x.Count);
+    }
+
+    /// <inheritdoc />
+    public async Task<int> CountAwaitingPayoutAsync()
+    {
+        // CountAsync(condition) = run "SELECT COUNT(*) ... WHERE condition" and return just the number.
+        // Same condition as the awaiting-payout list: approved at some point, and Disbursements has not confirmed.
+        return await _db.BenefitClaims
+            .CountAsync(c => c.PayoutRequestedAt == null && c.History.Any(h => h.ToStatus == ClaimStatus.Approved));
     }
 
     /// <inheritdoc />
