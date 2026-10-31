@@ -1,6 +1,6 @@
 # Developer B -> Developer A: running checklist
 
-Last updated: 2026-10-31 (after Claims step 2). Developer B keeps this list current. Tick an item (`[x]`) when it is done, and add new ones at the
+Last updated: 2026-10-31 (after Claims step 3). Developer B keeps this list current. Tick an item (`[x]`) when it is done, and add new ones at the
 bottom of the right section. Changes to this file go through a PR you both approve, like the rest of `docs/`.
 
 ## 1. Pull requests waiting for your review
@@ -23,6 +23,10 @@ Please review in this order. CI first, because once it is merged every later PR 
 - [ ] 6. Claims "file a claim" (`feature/claims-file-a-claim`): `POST /api/claims`, `GET /api/claims`, `GET /api/claims/{id}` (Member role).
       **Built on top of PR 4**, so it shows PR 4's changes too until PR 4 is merged. Please merge PR 4 first. B will retarget or rebase after.
       Uses a stub Enrollment client and a stub Identity client for now (see section 2).
+- [ ] 7. Claims admin endpoints + `ClaimApproved` publishing (`feature/claims-admin-and-approval`): `GET /api/admin/claims`,
+      `GET /api/admin/claims/{id}`, `PUT /api/admin/claims/{id}/status` (Admin role). Approving sends `ClaimApproved` to Disbursements
+      over HTTP with retries. **Built on top of PR 6** (which is on top of PR 4): merge 4, then 6, then 7.
+      Tested end to end with both services running: the Pending disbursement appears, and a second delivery creates no duplicate.
 
 Note on CI: it deliberately has **no path filters**. A required check that a path filter skips stays "pending" forever and blocks
 the PR. The whole solution builds in well under a minute, so one job is simpler. Tell B if you want filters anyway.
@@ -61,7 +65,7 @@ the PR. The whole solution builds in well under a minute, so one job is simpler.
   | Service | Port | Env vars |
   |---|---|---|
   | Disbursements | 5004 | `ConnectionStrings__DisbursementsDb`, `Jwt__Key`, `Jwt__Issuer`, `Jwt__Audience`, `InternalApiKey` |
-  | Claims | 5003 | `ConnectionStrings__ClaimsDb`, `Jwt__Key`, `Jwt__Issuer`, `Jwt__Audience`, and later `InternalApiKey` plus the Disbursements address |
+  | Claims | 5003 | `ConnectionStrings__ClaimsDb`, `Jwt__Key`, `Jwt__Issuer`, `Jwt__Audience`, `InternalApiKey` (same value as Disbursements), `Disbursements__BaseUrl` (for example `http://disbursements:5004` on the compose network). **Both of the last two are required: Claims refuses to start without them.** |
 
   `Jwt__Key` must be identical in every service. `InternalApiKey` must be the same in Claims and Disbursements.
 - [ ] **Container health check**: Disbursements answers `GET /health` with 200 `Healthy` and no token (after PR 2 merges).
@@ -81,5 +85,12 @@ No action needed unless you disagree.
 - Money rounds half **away from zero** (the monolith used banker's rounding).
 - The one-year claim limit counts both end days: `endDate >= startDate.AddYears(1)` is refused (slightly stricter than the monolith).
 - Disbursement due date = approval date + 7 days (one constant in `DisbursementService`).
+- A claim with a total benefit of 0 (a leave no longer than the elimination period) **cannot be approved**; it can only be denied.
+  Disbursements refuses an amount of 0, so approving it would promise a payout that can never be created.
+- **Known gap, please say if you accept it:** Claims saves the approval first and then sends `ClaimApproved` (3 tries, short waits).
+  If Disbursements stays down through all 3 tries, the claim stays Approved, the admin still sees success, an error is logged,
+  and **no disbursement is created** until someone re-sends the event. Disbursements is idempotent, so a re-send is safe.
+  The proper fix is an outbox table plus a background re-sender (more work). Cheaper options: an admin "re-send" endpoint, or
+  accept it for this project. Not built yet.
 - **Open design question for the owner:** should the person who filed a claim be barred from approving it themselves?
   Not in any doc, so not implemented.
