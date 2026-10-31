@@ -36,7 +36,11 @@ public class ClaimsApiStartupTests
     [InlineData("Jwt:Key", "")]
     [InlineData("Jwt:Key", "                                   ")]   // 35 spaces: long enough, but not a real key
     [InlineData("Jwt:Key", "too-short")]
-    public void StartupIsRefused_WhenAJwtSettingIsBlankOrTooWeak(string name, string value)
+    [InlineData("Disbursements:BaseUrl", "")]
+    [InlineData("Disbursements:BaseUrl", "not a web address")]
+    [InlineData("InternalApiKey", "")]
+    [InlineData("InternalApiKey", "   ")]
+    public void StartupIsRefused_WhenARequiredSettingIsBlankOrUnusable(string name, string value)
     {
         using var factory = new ClaimsApiFactory().With(name, value);
 

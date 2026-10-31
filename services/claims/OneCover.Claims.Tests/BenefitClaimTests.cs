@@ -96,6 +96,32 @@ public class BenefitClaimTests
     }
 
     [Fact]
+    public void MoveTo_Refuses_ToApproveAClaimWithNothingPayable_AndChangesNothing()
+    {
+        // A leave no longer than the elimination period has a total benefit of 0. Disbursements can't pay 0,
+        // so approving it would promise a payout that can never be created.
+        var claim = Submit(totalBenefit: 0m);
+        claim.MoveTo(ClaimStatus.InReview, changedByUserId: 1, note: null, changedAt: Now);
+
+        Assert.Throws<BusinessRuleException>(() =>
+            claim.MoveTo(ClaimStatus.Approved, changedByUserId: 1, note: null, changedAt: Now));
+
+        Assert.Equal(ClaimStatus.InReview, claim.Status);
+        Assert.Equal(2, claim.History.Count);   // the failed approval left no history row
+    }
+
+    [Fact]
+    public void MoveTo_StillAllowsDenying_AClaimWithNothingPayable()
+    {
+        var claim = Submit(totalBenefit: 0m);
+        claim.MoveTo(ClaimStatus.InReview, changedByUserId: 1, note: null, changedAt: Now);
+
+        claim.MoveTo(ClaimStatus.Denied, changedByUserId: 1, note: null, changedAt: Now);
+
+        Assert.Equal(ClaimStatus.Denied, claim.Status);
+    }
+
+    [Fact]
     public void MoveTo_Throws_AndChangesNothing_WhenTheNoteIsTooLong()
     {
         var claim = Submit();

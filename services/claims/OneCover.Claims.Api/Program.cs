@@ -50,6 +50,32 @@ builder.Services.AddSingleton<IBenefitCalculator, BenefitCalculator>();
 builder.Services.AddSingleton<IEnrollmentClient, StubEnrollmentClient>();
 builder.Services.AddSingleton<IIdentityClient, StubIdentityClient>();
 
+builder.Services.AddScoped<IAdminClaimService, AdminClaimService>();
+
+// ---- Sending events to Disbursements -----------------------------------------------------
+// Both settings are required, so a missing one stops startup with a clear message instead of failing on the first approval.
+var disbursementsBaseUrl = RequiredSetting(builder.Configuration, "Disbursements:BaseUrl");
+var internalApiKey = RequiredSetting(builder.Configuration, "InternalApiKey");
+
+// Uri.TryCreate checks the text is a full web address, so a typo is caught at startup.
+if (!Uri.TryCreate(disbursementsBaseUrl, UriKind.Absolute, out var disbursementsUri))
+{
+    throw new InvalidOperationException("Setting 'Disbursements:BaseUrl' must be a full address such as http://localhost:5175.");
+}
+
+// Bind the "Disbursements" section (BaseUrl, MaxAttempts, RetryDelay) to DisbursementsOptions.
+builder.Services.Configure<DisbursementsOptions>(builder.Configuration.GetSection(DisbursementsOptions.SectionName));
+
+// A "typed HttpClient": DI builds an HttpClient already set up for Disbursements and hands it to HttpClaimEventPublisher.
+// The base address and the shared key header are set once here, so no caller can forget them. Reusing clients this way
+// (instead of "new HttpClient()" each time) avoids exhausting network sockets.
+builder.Services.AddHttpClient<IClaimEventPublisher, HttpClaimEventPublisher>(client =>
+{
+    client.BaseAddress = disbursementsUri;
+    client.DefaultRequestHeaders.Add("X-Internal-Api-Key", internalApiKey);
+    client.Timeout = TimeSpan.FromSeconds(5);   // a hung Disbursements must not hang an admin's approval
+});
+
 // TimeProvider.System is the real clock. A "singleton" = one shared instance for the whole app.
 // Anything that needs "today" or "now" asks this instead of DateTime.Now, so tests can supply a fake clock.
 builder.Services.AddSingleton(TimeProvider.System);
