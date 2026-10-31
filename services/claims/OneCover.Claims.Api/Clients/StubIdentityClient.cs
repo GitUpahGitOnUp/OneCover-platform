@@ -2,7 +2,7 @@ namespace OneCover.Claims.Api.Clients;
 
 /// <summary>
 /// A TEMPORARY stand-in for the Identity service. It gives every member the same salary.
-/// Replace it with a real HTTP client for GET /internal/members/{id}, which Identity already has.
+/// Replace it with a real HTTP client for GET /internal/members/{id} (listed in the plan; check that Identity has built it).
 /// </summary>
 public class StubIdentityClient : IIdentityClient
 {

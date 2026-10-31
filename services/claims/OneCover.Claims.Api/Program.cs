@@ -45,7 +45,7 @@ builder.Services.AddScoped<IClaimService, ClaimService>();
 builder.Services.AddSingleton<IBenefitCalculator, BenefitCalculator>();
 
 // TEMPORARY stand-ins for the other services. Swap each for a real HTTP client once the endpoint exists:
-//   Identity   -> GET /internal/members/{id}      (already built by Developer A)
+//   Identity   -> GET /internal/members/{id}      (in the plan; not found in the repo yet)
 //   Enrollment -> GET /internal/enrollments/{id}  (not built yet)
 builder.Services.AddSingleton<IEnrollmentClient, StubEnrollmentClient>();
 builder.Services.AddSingleton<IIdentityClient, StubIdentityClient>();
