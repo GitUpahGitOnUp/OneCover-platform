@@ -1,6 +1,6 @@
 # Developer B -> Developer A: running checklist
 
-Last updated: 2026-10-31. Developer B keeps this list current. Tick an item (`[x]`) when it is done, and add new ones at the
+Last updated: 2026-10-31 (after Claims step 1). Developer B keeps this list current. Tick an item (`[x]`) when it is done, and add new ones at the
 bottom of the right section. Changes to this file go through a PR you both approve, like the rest of `docs/`.
 
 ## 1. Pull requests waiting for your review
@@ -12,11 +12,14 @@ Please review in this order. CI first, because once it is merged every later PR 
 | 1 | `feature/ci-build-and-test` | GitHub Actions: restore, build and test `OneCover.slnx` on every PR and push to `main` | Approve. Then add the **`build-and-test`** check as required in the `main` branch protection rules |
 | 2 | `feature/disbursements-health` | Anonymous `GET /health` on Disbursements (liveness only, no database check) | Approve |
 | 3 | `feature/disbursements-summary` | `GET /api/admin/disbursements/summary` (Admin): counts and money totals per status | Approve |
+| 4 | `feature/claims-repository-and-dtos` | Claims: `IClaimRepository`, response DTOs (`ClaimDto`, `ClaimHistoryDto`) and mappings. No endpoints yet | Approve. Claims only returns ids (no member or plan names): the web app looks names up from Identity and Enrollment |
 
 - [ ] 1. CI approved and merged
 - [ ] 1b. `build-and-test` set as a required check on `main`
 - [ ] 2. Disbursements `/health` approved and merged
 - [ ] 3. Disbursements `/summary` approved and merged
+- [ ] 4. Claims repository and DTOs approved and merged
+- [ ] 5. This handoff document approved and merged (`docs/handoff-to-dev-a`)
 
 Note on CI: it deliberately has **no path filters**. A required check that a path filter skips stays "pending" forever and blocks
 the PR. The whole solution builds in well under a minute, so one job is simpler. Tell B if you want filters anyway.
