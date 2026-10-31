@@ -38,6 +38,12 @@ public interface IDisbursementRepository
     Task<List<Disbursement>> ListAllAsync(DisbursementStatus? status = null, int skip = 0, int take = 50);
 
     /// <summary>
+    /// Counts the disbursements and adds up their amounts, one row per status that has at least one disbursement.
+    /// A status with none has no row, so the caller treats a missing status as zero.
+    /// </summary>
+    Task<List<StatusTotal>> GetTotalsByStatusAsync();
+
+    /// <summary>
     /// Inserts a new disbursement and saves it right away.
     /// Returns true if it was saved, or false if a disbursement for the same claim already exists
     /// (the same ClaimApproved event arrived twice). Either way the end result is exactly one row.

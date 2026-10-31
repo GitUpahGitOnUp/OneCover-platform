@@ -83,6 +83,19 @@ public class DisbursementRepository : IDisbursementRepository
     }
 
     /// <inheritdoc />
+    public async Task<List<StatusTotal>> GetTotalsByStatusAsync()
+    {
+        return await _db.Disbursements
+            .AsNoTracking()                     // read-only: we only report numbers, so skip change tracking
+            .GroupBy(d => d.Status)             // put rows with the same status in one group (Pending, Paid, Failed)
+            .Select(g => new StatusTotal(       // for each group, build one result row...
+                g.Key,                          //   Key = the status shared by the group
+                g.Count(),                      //   how many rows are in the group
+                g.Sum(d => d.Amount)))          //   the amounts in the group added together
+            .ToListAsync();                     // run ONE SQL query (GROUP BY) and return the rows as a List
+    }
+
+    /// <inheritdoc />
     public async Task<bool> TryAddAsync(Disbursement disbursement)
     {
         // Add (not AddAsync): it only marks the object as "new" in memory, no database call, so no await needed.

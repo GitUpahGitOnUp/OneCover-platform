@@ -28,6 +28,9 @@ public interface IDisbursementService
     /// <summary>Admin: gets any disbursement. Throws NotFoundException if it doesn't exist.</summary>
     Task<DisbursementDto> GetAsync(int id);
 
+    /// <summary>Admin: counts and money totals per status, for the dashboard.</summary>
+    Task<DisbursementSummaryDto> GetSummaryAsync();
+
     /// <summary>
     /// Admin: marks a Pending disbursement as Paid or Failed. Throws NotFoundException if it doesn't exist,
     /// and BusinessRuleException if the change breaks a rule or someone else changed it at the same moment.
