@@ -287,6 +287,14 @@ public class BenefitClaim
             throw new BusinessRuleException("A claim with no payable benefit can't be approved. Deny it instead.");
         }
 
+        // Separation of duties: nobody approves their own claim, another admin must. Today a Member files and an Admin
+        // approves, so the roles already keep these apart, but a member can later be promoted to Admin and keep the same
+        // user id. This check is what stops that person approving the claim they filed.
+        if (newStatus == ClaimStatus.Approved && changedByUserId == MemberId)
+        {
+            throw new BusinessRuleException("You can't approve a claim you filed yourself. Another admin must approve it.");
+        }
+
         // The actor must be a real user id from the JWT, so the audit trail never records "user 0".
         if (changedByUserId <= 0)
         {
