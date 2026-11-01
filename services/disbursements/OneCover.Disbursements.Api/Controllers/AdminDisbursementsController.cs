@@ -33,6 +33,14 @@ public class AdminDisbursementsController : ControllerBase
         return Ok(await _service.ListAllAsync(status, page, pageSize));
     }
 
+    /// <summary>Counts and money totals per status, for the admin dashboard.</summary>
+    // "summary" is a fixed word, and "{id:int}" below only matches numbers, so the two routes never clash.
+    [HttpGet("summary")]
+    public async Task<ActionResult<DisbursementSummaryDto>> Summary()
+    {
+        return Ok(await _service.GetSummaryAsync());
+    }
+
     /// <summary>Gets any disbursement by id. Returns 404 if it doesn't exist.</summary>
     /// <param name="id">The disbursement's id.</param>
     [EndpointSummary("Get any disbursement as an admin")]

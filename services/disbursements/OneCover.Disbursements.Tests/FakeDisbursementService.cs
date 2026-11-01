@@ -47,6 +47,11 @@ public class FakeDisbursementService : IDisbursementService
 
     public Task<DisbursementDto> GetAsync(int id) => throw new NotFoundException("Disbursement", id);
 
+    public Task<DisbursementSummaryDto> GetSummaryAsync() =>
+        Task.FromResult(new DisbursementSummaryDto(
+            TotalCount: 3, PendingCount: 1, PaidCount: 1, FailedCount: 1,
+            PendingAmount: 100m, PaidAmount: 200m, FailedAmount: 50m));
+
     public Task<DisbursementDto> UpdateStatusAsync(int id, UpdateDisbursementStatusRequest request)
     {
         StatusRequestSeen = request;
