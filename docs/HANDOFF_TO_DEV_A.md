@@ -49,6 +49,8 @@ next PR to `main`; if it does not, or if conflicts appear, tell B.
 - [ ] 11. Disbursements Dockerfile (`feature/disbursements-dockerfile`, #20): same pattern. **Built on top of PR 10** (reuses its `.dockerignore`).
       `docker build -f services/disbursements/OneCover.Disbursements.Api/Dockerfile -t onecover-disbursements .`
       Both images were built and started with dummy settings; auth-protected routes answered 401 as expected, and Claims `/health` answered 200.
+- [ ] 12. Claims no self-approval (`feature/claims-no-self-approval`): the member who filed a claim can't approve it (409). **Built on top of PR 8.**
+      PR number: see GitHub (B adds it here once opened).
 
 Note on CI: it deliberately has **no path filters**. A required check that a path filter skips stays "pending" forever and blocks
 the PR. The whole solution builds in well under a minute, so one job is simpler. Tell B if you want filters anyway.
@@ -121,8 +123,10 @@ No action needed unless you disagree.
   linking to the claims list filtered with `?awaitingPayout=true`, with a "Re-send payout" button per row.
 - Claims that were approved **before** PR 8's column existed show as awaiting payout until re-sent (re-sending is harmless). This only
   affects B's local dev data; there is no real data yet.
-- **Open design question for the owner:** should the person who filed a claim be barred from approving it themselves?
-  Not in any doc, so not implemented.
+- **Decided (B, 2026-11-01): nobody approves a claim they filed.** Another admin must approve it. Built in `BenefitClaim.MoveTo` on
+  `feature/claims-no-self-approval` (stacked on PR 8): approving with a user id equal to the claim's `memberId` is a **409**. It only
+  matters when a member is later promoted to Admin, since roles already keep the two apart. Denying and reviewing are not restricted.
+  Say so if you want the same rule for Denied, or want Enrollment/Identity to enforce anything similar.
 
 ## 6. Integration contracts and how to verify them (for Developer A and A's AI assistant)
 
@@ -181,7 +185,8 @@ The claim JSON has: `id, memberId, enrollmentId, reason, startDate, endDate, sta
 planEliminationDays, weeklyBenefit, totalBenefit, submittedAt, payoutRequestedAt, awaitingPayout, nextStatuses, history`.
 The request has **no amount fields**; the server computes them once, from the salary and plan terms at filing time.
 Illegal workflow moves and business-rule failures are **409**. Workflow: Submitted -> InReview <-> InfoRequested; InReview -> Approved or
-Denied; Approved or Denied -> Closed. A claim whose `totalBenefit` is 0 cannot be approved.
+Denied; Approved or Denied -> Closed. A claim whose `totalBenefit` is 0 cannot be approved, and neither can the member who filed it
+(409; needs `feature/claims-no-self-approval`).
 
 ### 6.5 Disbursements public API
 | Method and path | Role | Success |
