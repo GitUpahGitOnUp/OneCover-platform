@@ -239,6 +239,13 @@ public class BenefitClaim
             throw new BusinessRuleException($"Can't move a claim from {Status} to {newStatus}.");
         }
 
+        // Approving starts a payout, and Disbursements refuses to pay zero. A leave no longer than the elimination
+        // period has a total benefit of 0, so approving it would promise a payout that can never be created.
+        if (newStatus == ClaimStatus.Approved && TotalBenefit <= 0)
+        {
+            throw new BusinessRuleException("A claim with no payable benefit can't be approved. Deny it instead.");
+        }
+
         // The actor must be a real user id from the JWT, so the audit trail never records "user 0".
         if (changedByUserId <= 0)
         {

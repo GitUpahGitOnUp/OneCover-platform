@@ -25,10 +25,21 @@ public class ClaimsApiFactory : WebApplicationFactory<Program>
         ["ConnectionStrings:ClaimsDb"] = "Server=unused;Database=unused;Trusted_Connection=True;TrustServerCertificate=True",
         ["Jwt:Key"] = JwtKey,
         ["Jwt:Issuer"] = JwtIssuer,
-        ["Jwt:Audience"] = JwtAudience
+        ["Jwt:Audience"] = JwtAudience,
+        // Never called in these tests (the service is faked): the app only needs valid values so it will start.
+        ["Disbursements:BaseUrl"] = "http://localhost:1",
+        ["InternalApiKey"] = "test-internal-key"
     };
 
     private IClaimService? _service;
+    private IAdminClaimService? _adminService;
+
+    /// <summary>Swaps the real admin claim service for a fake one the test controls.</summary>
+    public ClaimsApiFactory WithAdminService(IAdminClaimService service)
+    {
+        _adminService = service;
+        return this;
+    }
 
     /// <summary>
     /// Swaps the real claim service (which needs a database) for a fake one the test controls.
@@ -56,6 +67,15 @@ public class ClaimsApiFactory : WebApplicationFactory<Program>
         foreach (var (name, value) in _settings)
         {
             builder.UseSetting(name, value);
+        }
+
+        if (_adminService is not null)
+        {
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IAdminClaimService>();
+                services.AddSingleton(_adminService);
+            });
         }
 
         if (_service is not null)
