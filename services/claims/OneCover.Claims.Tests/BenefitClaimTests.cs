@@ -95,6 +95,82 @@ public class BenefitClaimTests
         Assert.Throws<BusinessRuleException>(() => Submit(reason: tooLong));
     }
 
+    // Moves a fresh claim through review to Approved.
+    private static BenefitClaim Approved()
+    {
+        var claim = Submit();
+        claim.MoveTo(ClaimStatus.InReview, changedByUserId: 1, note: null, changedAt: Now);
+        claim.MoveTo(ClaimStatus.Approved, changedByUserId: 1, note: null, changedAt: Now.AddHours(1));
+        return claim;
+    }
+
+    [Fact]
+    public void ANewClaim_IsNotApproved_AndIsNotAwaitingPayout()
+    {
+        var claim = Submit();
+
+        Assert.False(claim.WasApproved);
+        Assert.False(claim.AwaitingPayout);
+        Assert.Null(claim.ApprovedAt);
+    }
+
+    [Fact]
+    public void AnApprovedClaim_IsAwaitingPayout_UntilDisbursementsConfirms()
+    {
+        var claim = Approved();
+
+        Assert.True(claim.WasApproved);
+        Assert.True(claim.AwaitingPayout);
+        Assert.Equal(Now.AddHours(1), claim.ApprovedAt);
+
+        claim.MarkPayoutRequested(Now.AddHours(2));
+
+        Assert.False(claim.AwaitingPayout);
+        Assert.Equal(Now.AddHours(2), claim.PayoutRequestedAt);
+    }
+
+    [Fact]
+    public void ClosingAnApprovedClaim_KeepsItAwaitingPayout()
+    {
+        var claim = Approved();
+
+        claim.MoveTo(ClaimStatus.Closed, changedByUserId: 1, note: null, changedAt: Now.AddHours(3));
+
+        Assert.Equal(ClaimStatus.Closed, claim.Status);
+        Assert.True(claim.AwaitingPayout);   // Status no longer says Approved, but the history still does
+    }
+
+    [Fact]
+    public void ADeniedClaim_NeverAwaitsAPayout()
+    {
+        var claim = Submit();
+        claim.MoveTo(ClaimStatus.InReview, changedByUserId: 1, note: null, changedAt: Now);
+        claim.MoveTo(ClaimStatus.Denied, changedByUserId: 1, note: null, changedAt: Now);
+
+        Assert.False(claim.AwaitingPayout);
+    }
+
+    [Fact]
+    public void MarkPayoutRequested_Refuses_AClaimThatWasNeverApproved()
+    {
+        var claim = Submit();
+
+        Assert.Throws<BusinessRuleException>(() => claim.MarkPayoutRequested(Now));
+
+        Assert.Null(claim.PayoutRequestedAt);
+    }
+
+    [Fact]
+    public void MarkPayoutRequested_Refuses_ToRecordItTwice_AndKeepsTheFirstTime()
+    {
+        var claim = Approved();
+        claim.MarkPayoutRequested(Now.AddHours(2));
+
+        Assert.Throws<BusinessRuleException>(() => claim.MarkPayoutRequested(Now.AddDays(9)));
+
+        Assert.Equal(Now.AddHours(2), claim.PayoutRequestedAt);
+    }
+
     [Fact]
     public void MoveTo_Refuses_ToApproveAClaimWithNothingPayable_AndChangesNothing()
     {

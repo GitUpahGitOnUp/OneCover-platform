@@ -32,8 +32,18 @@ public interface IClaimRepository
     Task<List<BenefitClaim>> ListForMemberAsync(int memberId, int skip = 0, int take = 50);
 
     /// <summary>Lists all claims for admins, optionally only those with the given status, newest first, one page at a time.</summary>
+    /// <param name="status">Only claims with this status, or null for every status.</param>
+    /// <param name="skip">How many rows to skip.</param>
+    /// <param name="take">The most rows to return.</param>
+    /// <param name="awaitingPayoutOnly">True to list only approved claims Disbursements has not confirmed (the dashboard warning).</param>
     // "ClaimStatus? status = null" is an OPTIONAL parameter: callers may leave it out.
-    Task<List<BenefitClaim>> ListAllAsync(ClaimStatus? status = null, int skip = 0, int take = 50);
+    Task<List<BenefitClaim>> ListAllAsync(ClaimStatus? status = null, int skip = 0, int take = 50, bool awaitingPayoutOnly = false);
+
+    /// <summary>Counts the claims per status. A status with no claims has no entry, so the caller treats a missing one as zero.</summary>
+    Task<Dictionary<ClaimStatus, int>> CountByStatusAsync();
+
+    /// <summary>Counts the approved claims that Disbursements has not yet confirmed (the dashboard warning).</summary>
+    Task<int> CountAwaitingPayoutAsync();
 
     /// <summary>Stages a new claim (and its first history row) and saves it right away.</summary>
     Task AddAsync(BenefitClaim claim);

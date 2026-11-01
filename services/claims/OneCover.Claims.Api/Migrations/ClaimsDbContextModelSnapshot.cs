@@ -39,6 +39,9 @@ namespace OneCover.Claims.Api.Migrations
                     b.Property<int>("MemberId")
                         .HasColumnType("int");
 
+                    b.Property<DateTimeOffset?>("PayoutRequestedAt")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<decimal>("PlanBenefitPercent")
                         .HasPrecision(5, 4)
                         .HasColumnType("decimal(5,4)");

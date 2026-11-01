@@ -26,6 +26,7 @@ public class FakeClaimService : IClaimService
             StartDate: request.StartDate, EndDate: request.EndDate, Status: ClaimStatus.Submitted,
             PlanBenefitPercent: 0.60m, PlanWeeklyMaximum: 1_500m, PlanEliminationDays: 7,
             WeeklyBenefit: 900m, TotalBenefit: 900m, SubmittedAt: DateTimeOffset.UnixEpoch,
+            PayoutRequestedAt: null, AwaitingPayout: false,
             NextStatuses: [ClaimStatus.InReview], History: []));
     }
 

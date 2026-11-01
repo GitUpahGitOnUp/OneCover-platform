@@ -128,6 +128,44 @@ public class ClaimRepositoryTests
     }
 
     [Fact]
+    public async Task TheCountsAndTheAwaitingPayoutFilter_AgreeWithEachOther()
+    {
+        await using var db = NewDb(Guid.NewGuid().ToString());
+        var repository = new ClaimRepository(db);
+
+        var flagged = NewClaim(memberId: 1);       // approved, payout never confirmed
+        flagged.MoveTo(ClaimStatus.InReview, changedByUserId: 900, note: null, changedAt: Now);
+        flagged.MoveTo(ClaimStatus.Approved, changedByUserId: 900, note: null, changedAt: Now);
+
+        var confirmed = NewClaim(memberId: 2);     // approved, payout confirmed
+        confirmed.MoveTo(ClaimStatus.InReview, changedByUserId: 900, note: null, changedAt: Now);
+        confirmed.MoveTo(ClaimStatus.Approved, changedByUserId: 900, note: null, changedAt: Now);
+        confirmed.MarkPayoutRequested(Now);
+
+        var closed = NewClaim(memberId: 3);        // approved, then closed, payout never confirmed
+        closed.MoveTo(ClaimStatus.InReview, changedByUserId: 900, note: null, changedAt: Now);
+        closed.MoveTo(ClaimStatus.Approved, changedByUserId: 900, note: null, changedAt: Now);
+        closed.MoveTo(ClaimStatus.Closed, changedByUserId: 900, note: null, changedAt: Now);
+
+        var untouched = NewClaim(memberId: 4);     // never approved
+        foreach (var claim in new[] { flagged, confirmed, closed, untouched })
+        {
+            await repository.AddAsync(claim);
+        }
+
+        var awaiting = await repository.ListAllAsync(awaitingPayoutOnly: true);
+        var count = await repository.CountAwaitingPayoutAsync();
+        var byStatus = await repository.CountByStatusAsync();
+
+        Assert.Equal(2, count);
+        Assert.Equal([closed.Id, flagged.Id], awaiting.Select(c => c.Id).OrderByDescending(id => id));
+        Assert.Equal(1, byStatus[ClaimStatus.Submitted]);
+        Assert.Equal(2, byStatus[ClaimStatus.Approved]);
+        Assert.Equal(1, byStatus[ClaimStatus.Closed]);
+        Assert.False(byStatus.ContainsKey(ClaimStatus.Denied));   // a status nobody has is simply absent
+    }
+
+    [Fact]
     public async Task AMoveSavedThroughTheRepository_AddsAHistoryRow()
     {
         var name = Guid.NewGuid().ToString();

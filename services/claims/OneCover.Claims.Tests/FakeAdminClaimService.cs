@@ -20,10 +20,43 @@ public class FakeAdminClaimService : IAdminClaimService
     /// <summary>The status filter the controller passed to ListAllAsync.</summary>
     public ClaimStatus? FilterSeen { get; private set; }
 
-    public Task<List<ClaimDto>> ListAllAsync(ClaimStatus? status, int page, int pageSize)
+    /// <summary>The awaiting-payout flag the controller passed to ListAllAsync.</summary>
+    public bool? AwaitingPayoutSeen { get; private set; }
+
+    /// <summary>The claim id the controller passed to ResendPayoutAsync.</summary>
+    public int? ResentId { get; private set; }
+
+    /// <summary>When set, ResendPayoutAsync throws this instead of succeeding.</summary>
+    public Exception? ResendFailure { get; set; }
+
+    public Task<List<ClaimDto>> ListAllAsync(ClaimStatus? status, int page, int pageSize, bool awaitingPayoutOnly = false)
     {
         FilterSeen = status;
+        AwaitingPayoutSeen = awaitingPayoutOnly;
         return Task.FromResult(new List<ClaimDto>());
+    }
+
+    public Task<ClaimSummaryDto> GetSummaryAsync() =>
+        Task.FromResult(new ClaimSummaryDto(
+            TotalClaims: 5,
+            ClaimsByStatus: [new ClaimStatusCountDto(ClaimStatus.Approved, 5)],
+            AwaitingPayoutCount: 2));
+
+    public Task<ClaimDto> ResendPayoutAsync(int id)
+    {
+        ResentId = id;
+        if (ResendFailure is not null)
+        {
+            throw ResendFailure;
+        }
+
+        return Task.FromResult(new ClaimDto(
+            Id: id, MemberId: 1, EnrollmentId: 1, Reason: "Surgery",
+            StartDate: new DateOnly(2026, 10, 1), EndDate: new DateOnly(2026, 10, 14), Status: ClaimStatus.Approved,
+            PlanBenefitPercent: 0.60m, PlanWeeklyMaximum: 1_500m, PlanEliminationDays: 7,
+            WeeklyBenefit: 900m, TotalBenefit: 900m, SubmittedAt: DateTimeOffset.UnixEpoch,
+            PayoutRequestedAt: DateTimeOffset.UnixEpoch, AwaitingPayout: false,
+            NextStatuses: [ClaimStatus.Closed], History: []));
     }
 
     public Task<ClaimDto> GetAsync(int id) => throw new NotFoundException("Claim", id);
@@ -37,6 +70,7 @@ public class FakeAdminClaimService : IAdminClaimService
             StartDate: new DateOnly(2026, 10, 1), EndDate: new DateOnly(2026, 10, 14), Status: request.Status,
             PlanBenefitPercent: 0.60m, PlanWeeklyMaximum: 1_500m, PlanEliminationDays: 7,
             WeeklyBenefit: 900m, TotalBenefit: 900m, SubmittedAt: DateTimeOffset.UnixEpoch,
+            PayoutRequestedAt: null, AwaitingPayout: false,
             NextStatuses: [], History: []));
     }
 }

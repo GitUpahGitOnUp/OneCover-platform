@@ -25,11 +25,32 @@ public class AdminClaimsController : ControllerBase
     /// <param name="status">Optional filter: Submitted, InReview, InfoRequested, Approved, Denied or Closed. Leave out for all.</param>
     /// <param name="page">Page number, starting at 1.</param>
     /// <param name="pageSize">Rows per page (maximum 100).</param>
+    /// <param name="awaitingPayout">Set to true to list only approved claims whose payout Disbursements has not confirmed.</param>
     [HttpGet]
     public async Task<ActionResult<List<ClaimDto>>> List(
-        [FromQuery] ClaimStatus? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
+        [FromQuery] ClaimStatus? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 50,
+        [FromQuery] bool awaitingPayout = false)
     {
-        return Ok(await _service.ListAllAsync(status, page, pageSize));
+        return Ok(await _service.ListAllAsync(status, page, pageSize, awaitingPayout));
+    }
+
+    /// <summary>Counts per status plus the number of approved claims awaiting a payout, for the admin dashboard.</summary>
+    // "summary" is a fixed word, and "{id:int}" below only matches numbers, so the two routes never clash.
+    [HttpGet("summary")]
+    public async Task<ActionResult<ClaimSummaryDto>> Summary()
+    {
+        return Ok(await _service.GetSummaryAsync());
+    }
+
+    /// <summary>
+    /// Sends the payout request for an approved claim again, when Disbursements never confirmed it. Safe to click twice.
+    /// Returns 409 if the claim was never approved or is already confirmed, and 503 if Disbursements is still unreachable.
+    /// </summary>
+    /// <param name="id">The claim's id.</param>
+    [HttpPost("{id:int}/resend-payout")]
+    public async Task<ActionResult<ClaimDto>> ResendPayout(int id)
+    {
+        return Ok(await _service.ResendPayoutAsync(id));
     }
 
     /// <summary>Gets any claim by id. Returns 404 if it doesn't exist.</summary>
