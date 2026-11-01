@@ -38,6 +38,10 @@ public class ClaimsApiStartupTests
     [InlineData("Jwt:Key", "too-short")]
     [InlineData("Disbursements:BaseUrl", "")]
     [InlineData("Disbursements:BaseUrl", "not a web address")]
+    [InlineData("Enrollment:BaseUrl", "")]
+    [InlineData("Enrollment:BaseUrl", "not a web address")]
+    [InlineData("Identity:BaseUrl", "")]
+    [InlineData("Identity:BaseUrl", "not a web address")]
     [InlineData("InternalApiKey", "")]
     [InlineData("InternalApiKey", "   ")]
     public void StartupIsRefused_WhenARequiredSettingIsBlankOrUnusable(string name, string value)

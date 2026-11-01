@@ -13,14 +13,19 @@ using OneCover.Identity.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var connectionString = builder.Configuration.GetConnectionString("IdentityDb")
-    ?? throw new InvalidOperationException("ConnectionStrings:IdentityDb is not configured.");
-var jwtKey = builder.Configuration["Jwt:Key"]
-    ?? throw new InvalidOperationException("Jwt:Key is not configured.");
-var jwtIssuer = builder.Configuration["Jwt:Issuer"]
-    ?? throw new InvalidOperationException("Jwt:Issuer is not configured.");
-var jwtAudience = builder.Configuration["Jwt:Audience"]
-    ?? throw new InvalidOperationException("Jwt:Audience is not configured.");
+static string RequiredSetting(IConfiguration configuration, string name)
+{
+    var value = configuration[name];
+    return string.IsNullOrWhiteSpace(value)
+        ? throw new InvalidOperationException($"Setting '{name}' is missing or blank.")
+        : value;
+}
+
+var connectionString = RequiredSetting(builder.Configuration, "ConnectionStrings:IdentityDb");
+var jwtKey = RequiredSetting(builder.Configuration, "Jwt:Key");
+var jwtIssuer = RequiredSetting(builder.Configuration, "Jwt:Issuer");
+var jwtAudience = RequiredSetting(builder.Configuration, "Jwt:Audience");
+_ = RequiredSetting(builder.Configuration, "InternalApiKey");
 if (Encoding.UTF8.GetByteCount(jwtKey) < 32)
 {
     throw new InvalidOperationException("Jwt:Key must be at least 32 bytes long.");
@@ -103,16 +108,28 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 builder.Services.AddAuthorization();
+builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
-if (app.Environment.IsDevelopment())
+var migrateOnStartup = app.Environment.IsDevelopment() ||
+    builder.Configuration.GetValue<bool>("Database:MigrateOnStartup");
+if (migrateOnStartup)
 {
     await using var scope = app.Services.CreateAsyncScope();
     var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
     await db.Database.MigrateAsync();
+}
+
+if (app.Environment.IsDevelopment() ||
+    builder.Configuration.GetValue<bool>("DemoAdmin:SeedOnStartup"))
+{
     await DemoAdminSeeder.SeedAsync(app.Services, app.Configuration);
+}
+
+if (app.Environment.IsDevelopment())
+{
     app.MapOpenApi();
     app.MapScalarApiReference("/scalar", options =>
         options.WithTitle("OneCover Identity API")
@@ -125,4 +142,5 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHealthChecks("/health");
 app.Run();

@@ -13,9 +13,11 @@
   </Folder>
   <Folder Name="/services/enrollment/">
     <Project Path="services/enrollment/OneCover.Enrollment.Api/OneCover.Enrollment.Api.csproj" />
+    <Project Path="services/enrollment/OneCover.Enrollment.Tests/OneCover.Enrollment.Tests.csproj" />
   </Folder>
   <Folder Name="/services/identity/">
     <Project Path="services/identity/OneCover.Identity.Api/OneCover.Identity.Api.csproj" />
+    <Project Path="services/identity/OneCover.Identity.Tests/OneCover.Identity.Tests.csproj" />
   </Folder>
   <Folder Name="/gateway/">
     <Project Path="gateway/OneCover.Gateway/OneCover.Gateway.csproj" />

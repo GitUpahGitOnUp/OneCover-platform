@@ -35,12 +35,15 @@ builder.Services
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddProblemDetails();
 builder.Services
     .AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 
 var app = builder.Build();
 
+app.UseExceptionHandler();
+app.UseStatusCodePages();
 app.UseAuthentication();
 app.UseAuthorization();
 

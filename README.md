@@ -7,7 +7,8 @@ and record benefit disbursements.
 This is the microservices version of the original OneCover monolith (a layered ASP.NET Core API + Angular app).
 Built as a portfolio project in a .NET full-stack training program.
 
-> **Status:** in progress. See [`docs/MICROSERVICES_PLAN.md`](docs/MICROSERVICES_PLAN.md) for the plan and checklist.
+> **Status:** API services and Docker Compose are implemented; the Angular UI and full-stack end-to-end verification remain.
+> See [`docs/MICROSERVICES_PLAN.md`](docs/MICROSERVICES_PLAN.md) for the plan and checklist.
 
 ## Architecture
 
@@ -106,123 +107,35 @@ stateDiagram-v2
 
 ## Running locally
 
-Identity and Enrollment are implemented. The other services, gateway, Angular app, and
-Docker Compose integration are still in progress. For local Identity/Enrollment development,
-you need the .NET 10 SDK and a SQL Server instance. The example below runs SQL Server in Docker
-and keeps connection strings and signing keys in each service's .NET user-secrets store.
-
-### 1. Start SQL Server
-
-In PowerShell, set a strong local password when prompted and start SQL Server:
+The API services and gateway can be run together with Docker Compose. The .NET 10 SDK is only
+needed for local builds and tests.
 
 ```powershell
-$sqlPassword = [System.Net.NetworkCredential]::new("", (Read-Host "Local SQL Server SA password" -AsSecureString)).Password
-docker run --name onecover-sql -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD="$sqlPassword" -p 1433:1433 -d mcr.microsoft.com/mssql/server:2022-latest
+Copy-Item .env.example .env
+notepad .env
+docker compose up --build
 ```
 
-If `onecover-sql` already exists, start it with `docker start onecover-sql`.
+Set private values for the SQL Server SA password, JWT signing key, internal API key, and
+demo admin credentials in `.env` before starting. Do not commit `.env`; it is ignored by Git.
+Compose starts SQL Server and all four APIs, applies each service's own migrations to its own
+database, and seeds the configured demo admin. Containers run in Production mode; the
+development-only Disbursements token endpoint and interactive API pages are not enabled.
+The Gateway is available at `http://localhost:5000`. Direct service ports are Identity 5001,
+Enrollment 5002, Claims 5003, and Disbursements 5004. Service-to-service calls use the shared
+internal key and bypass the gateway; `/internal/**` is not publicly routed.
 
-### 2. Configure local secrets
+Stop the stack with `docker compose down`. The named SQL volume persists local data.
 
-Run these commands from `OneCover-platform`. PowerShell variables do not carry over to a
-new terminal, so enter the **same SQL Server SA password** used when creating the container.
-Identity, Enrollment, Disbursements, and the gateway must use the same JWT issuer, audience,
-and key so the gateway and services accept tokens issued by Identity. The internal API key
-protects `/internal/**` endpoints; it is not the JWT key.
+Build and run all unit and integration tests from the repository root:
 
 ```powershell
-$sqlPassword = [System.Net.NetworkCredential]::new("", (Read-Host "Enter the same SQL Server SA password" -AsSecureString)).Password
-if ([string]::IsNullOrWhiteSpace($sqlPassword)) {
-    throw "SQL Server SA password cannot be empty."
-}
-
-$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-$randomBytes = [byte[]]::new(48)
-$rng.GetBytes($randomBytes)
-$jwtKey = [Convert]::ToBase64String($randomBytes)
-$randomBytes = [byte[]]::new(32)
-$rng.GetBytes($randomBytes)
-$internalApiKey = [Convert]::ToBase64String($randomBytes)
-
-$identityProject = ".\services\identity\OneCover.Identity.Api\OneCover.Identity.Api.csproj"
-$enrollmentProject = ".\services\enrollment\OneCover.Enrollment.Api\OneCover.Enrollment.Api.csproj"
-$disbursementsProject = ".\services\disbursements\OneCover.Disbursements.Api\OneCover.Disbursements.Api.csproj"
-$gatewayProject = ".\gateway\OneCover.Gateway\OneCover.Gateway.csproj"
-$connectionBuilder = [System.Data.Common.DbConnectionStringBuilder]::new()
-$connectionBuilder["Server"] = "localhost,1433"
-$connectionBuilder["User ID"] = "sa"
-$connectionBuilder["Password"] = $sqlPassword
-$connectionBuilder["TrustServerCertificate"] = "True"
-if (-not $connectionBuilder.ContainsKey("Password")) {
-    throw "SQL Server password was not added to the connection string."
-}
-$connectionBuilder["Database"] = "OneCoverIdentityDb"
-$identityConnection = $connectionBuilder.ConnectionString
-$connectionBuilder["Database"] = "OneCoverEnrollmentDb"
-$enrollmentConnection = $connectionBuilder.ConnectionString
-$connectionBuilder["Database"] = "DisbursementsDb"
-$disbursementsConnection = $connectionBuilder.ConnectionString
-
-dotnet user-secrets set "ConnectionStrings:IdentityDb" "$identityConnection" --project $identityProject
-dotnet user-secrets set "ConnectionStrings:EnrollmentDb" "$enrollmentConnection" --project $enrollmentProject
-dotnet user-secrets set "ConnectionStrings:DisbursementsDb" "$disbursementsConnection" --project $disbursementsProject
-foreach ($project in @($identityProject, $enrollmentProject, $disbursementsProject, $gatewayProject)) {
-    dotnet user-secrets set "Jwt:Issuer" "OneCover" --project $project
-    dotnet user-secrets set "Jwt:Audience" "OneCoverClients" --project $project
-    dotnet user-secrets set "Jwt:Key" "$jwtKey" --project $project
-}
-foreach ($project in @($identityProject, $enrollmentProject)) {
-    dotnet user-secrets set "InternalApiKey" "$internalApiKey" --project $project
-}
-
-$adminPassword = [System.Net.NetworkCredential]::new("", (Read-Host "Development admin password" -AsSecureString)).Password
-dotnet user-secrets set "DemoAdmin:Email" "admin@onecover.local" --project $identityProject
-dotnet user-secrets set "DemoAdmin:Password" "$adminPassword" --project $identityProject
+dotnet test .\OneCover.slnx
 ```
 
-The development admin is created only when both `DemoAdmin:Email` and `DemoAdmin:Password`
-are configured. New public registrations always receive the `Member` role.
-
-### 3. Build and run
-
-```powershell
-dotnet restore .\OneCover.slnx
-dotnet build .\OneCover.slnx
-dotnet run --project .\services\identity\OneCover.Identity.Api\OneCover.Identity.Api.csproj --launch-profile http
-```
-
-In a second terminal:
-
-```powershell
-cd D:\Revature\OneCoverMicro\OneCover-platform
-dotnet run --project .\services\enrollment\OneCover.Enrollment.Api\OneCover.Enrollment.Api.csproj --launch-profile http
-```
-
-In another terminal, start the gateway:
-
-```powershell
-cd D:\Revature\OneCoverMicro\OneCover-platform
-dotnet run --project .\gateway\OneCover.Gateway\OneCover.Gateway.csproj --launch-profile http
-```
-
-Configure the gateway with the same `Jwt:Issuer`, `Jwt:Audience`, and `Jwt:Key` as Identity and
-the other JWT-validating services. The gateway defaults to local service URLs on ports 5001–5004;
-override destinations with `ReverseProxy__Clusters__<cluster>__Destinations__<destination>__Address`
-when deploying. Client applications should use `http://localhost:5000` for public API calls.
-Identity login/registration and `GET /api/plans` are anonymous; other routes require a valid
-JWT at the gateway and are still authorized by their owning service.
-
-In Development, each service applies its EF Core migrations at startup. Browse the OpenAPI
-documents at `http://localhost:5001/openapi/v1.json` and
-`http://localhost:5002/openapi/v1.json`. For interactive API testing, open Scalar at
-`http://localhost:5001/scalar` (Identity), `http://localhost:5002/scalar` (Enrollment), or
-`http://localhost:5175/scalar` (Disbursements when run with its `http` launch profile; Compose
-uses port 5004). In Disbursements Scalar, call `GET /dev/token` with `userId` and `role`
-(`Member` or `Admin`), then paste the returned token into **Authorize** to test the protected
-member and admin endpoints. The member ID should match a disbursement's `MemberId`. The
-development-token endpoint and interactive API pages are Development-only.
-The API request examples are in the services' `.http` files. Stop either service with
-`Ctrl+C`; stop SQL Server with `docker stop onecover-sql`.
+In Development, the API services apply their EF Core migrations at startup. Browse OpenAPI at
+`http://localhost:5001/openapi/v1.json` (Identity) and `http://localhost:5002/openapi/v1.json`
+(Enrollment). The API request examples are in the services' `.http` files.
 
 The current estimate uses monthly plan rates annualized and divided by 26 pay periods.
 Non-disability plans are seeded with sample rates for all four coverage tiers; STD/LTD are

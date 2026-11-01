@@ -10,5 +10,7 @@ public interface IEnrollmentClient
 {
     /// <summary>Gets an enrollment's owner, status and plan terms, or null if Enrollment has no such enrollment.</summary>
     /// <param name="enrollmentId">The enrollment to look up.</param>
-    Task<EnrollmentTerms?> GetEnrollmentAsync(int enrollmentId);
+    Task<EnrollmentTerms?> GetEnrollmentAsync(
+        int enrollmentId,
+        CancellationToken cancellationToken = default);
 }

@@ -28,6 +28,8 @@ public class ClaimsApiFactory : WebApplicationFactory<Program>
         ["Jwt:Audience"] = JwtAudience,
         // Never called in these tests (the service is faked): the app only needs valid values so it will start.
         ["Disbursements:BaseUrl"] = "http://localhost:1",
+        ["Enrollment:BaseUrl"] = "http://localhost:2",
+        ["Identity:BaseUrl"] = "http://localhost:3",
         ["InternalApiKey"] = "test-internal-key"
     };
 

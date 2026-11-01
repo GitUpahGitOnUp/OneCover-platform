@@ -75,9 +75,9 @@ public sealed class EnrollmentService(
         return new InternalEnrollmentResponse(
             Id: enrollment.Id,
             MemberId: enrollment.MemberId,
-            PlanId: enrollment.PlanId,
-            Status: enrollment.Status,
-            PlanType: enrollment.Plan.Type,
+            PlanType: enrollment.Plan.Type.ToString(),
+            IsActive: enrollment.Status == EnrollmentStatus.Active,
+            CoverageStartDate: enrollment.EnrolledOn,
             BenefitPercent: enrollment.Plan.BenefitPercent,
             WeeklyMaximum: enrollment.Plan.WeeklyMaximum,
             EliminationDays: enrollment.Plan.EliminationDays);

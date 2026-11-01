@@ -45,9 +45,11 @@ public class ClaimsController : ControllerBase
     /// <param name="request">The enrollment, reason and leave dates.</param>
     // CreatedAtAction = HTTP 201 Created, plus a Location header pointing at GET /api/claims/{id} for the new claim.
     [HttpPost]
-    public async Task<ActionResult<ClaimDto>> Submit(SubmitClaimRequest request)
+    public async Task<ActionResult<ClaimDto>> Submit(
+        SubmitClaimRequest request,
+        CancellationToken cancellationToken)
     {
-        var claim = await _service.SubmitAsync(User.GetUserId(), request);
+        var claim = await _service.SubmitAsync(User.GetUserId(), request, cancellationToken);
 
         return CreatedAtAction(nameof(Get), new { id = claim.Id }, claim);
     }

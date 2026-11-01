@@ -30,13 +30,14 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
 
         logger.LogWarning(exception, "Request failed with {StatusCode}: {Title}", statusCode, title);
         httpContext.Response.StatusCode = statusCode;
+        httpContext.Response.ContentType = "application/problem+json";
         await httpContext.Response.WriteAsJsonAsync(new ProblemDetails
         {
             Status = statusCode,
             Title = title,
             Detail = title,
             Instance = httpContext.Request.Path
-        }, cancellationToken);
+        }, options: null, contentType: "application/problem+json", cancellationToken);
         return true;
     }
 

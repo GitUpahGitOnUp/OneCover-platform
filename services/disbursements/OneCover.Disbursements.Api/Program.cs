@@ -157,6 +157,14 @@ if (app.Environment.IsDevelopment())
             .AddHttpAuthentication("Bearer", scheme => scheme.Token = string.Empty));
 }
 
+if (app.Environment.IsDevelopment() ||
+    builder.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    var db = scope.ServiceProvider.GetRequiredService<DisbursementsDbContext>();
+    await db.Database.MigrateAsync();
+}
+
 app.UseHttpsRedirection();
 
 app.UseAuthentication();     // 1) work out WHO the caller is (read the token)

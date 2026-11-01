@@ -1,0 +1,131 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in .env}
+    ports:
+      - "${SQL_PORT:-1433}:1433"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -C -Q "SELECT 1" || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+
+  identity:
+    build:
+      context: .
+      dockerfile: services/identity/OneCover.Identity.Api/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__IdentityDb: Server=sqlserver,1433;Database=IdentityDb;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=False;TrustServerCertificate=True
+      Jwt__Key: ${JWT_KEY:?Set JWT_KEY in .env}
+      Jwt__Issuer: onecover-identity
+      Jwt__Audience: onecover
+      InternalApiKey: ${INTERNAL_API_KEY:?Set INTERNAL_API_KEY in .env}
+      Database__MigrateOnStartup: "true"
+      DemoAdmin__SeedOnStartup: "true"
+      DemoAdmin__Email: ${DEMO_ADMIN_EMAIL:?Set DEMO_ADMIN_EMAIL in .env}
+      DemoAdmin__Password: ${DEMO_ADMIN_PASSWORD:?Set DEMO_ADMIN_PASSWORD in .env}
+    ports:
+      - "5001:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+
+  enrollment:
+    build:
+      context: .
+      dockerfile: services/enrollment/OneCover.Enrollment.Api/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__EnrollmentDb: Server=sqlserver,1433;Database=EnrollmentDb;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=False;TrustServerCertificate=True
+      Jwt__Key: ${JWT_KEY:?Set JWT_KEY in .env}
+      Jwt__Issuer: onecover-identity
+      Jwt__Audience: onecover
+      InternalApiKey: ${INTERNAL_API_KEY:?Set INTERNAL_API_KEY in .env}
+      Database__MigrateOnStartup: "true"
+    ports:
+      - "5002:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+
+  disbursements:
+    build:
+      context: .
+      dockerfile: services/disbursements/OneCover.Disbursements.Api/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DisbursementsDb: Server=sqlserver,1433;Database=DisbursementsDb;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=False;TrustServerCertificate=True
+      Jwt__Key: ${JWT_KEY:?Set JWT_KEY in .env}
+      Jwt__Issuer: onecover-identity
+      Jwt__Audience: onecover
+      InternalApiKey: ${INTERNAL_API_KEY:?Set INTERNAL_API_KEY in .env}
+      Database__MigrateOnStartup: "true"
+    ports:
+      - "5004:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+
+  claims:
+    build:
+      context: .
+      dockerfile: services/claims/OneCover.Claims.Api/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__ClaimsDb: Server=sqlserver,1433;Database=ClaimsDb;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=False;TrustServerCertificate=True
+      Jwt__Key: ${JWT_KEY:?Set JWT_KEY in .env}
+      Jwt__Issuer: onecover-identity
+      Jwt__Audience: onecover
+      InternalApiKey: ${INTERNAL_API_KEY:?Set INTERNAL_API_KEY in .env}
+      Identity__BaseUrl: http://identity:8080/
+      Enrollment__BaseUrl: http://enrollment:8080/
+      Disbursements__BaseUrl: http://disbursements:8080/
+      Database__MigrateOnStartup: "true"
+    ports:
+      - "5003:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      identity:
+        condition: service_started
+      enrollment:
+        condition: service_started
+      disbursements:
+        condition: service_started
+
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/OneCover.Gateway/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Jwt__Key: ${JWT_KEY:?Set JWT_KEY in .env}
+      Jwt__Issuer: onecover-identity
+      Jwt__Audience: onecover
+      ReverseProxy__Clusters__identity__Destinations__identity-api__Address: http://identity:8080/
+      ReverseProxy__Clusters__enrollment__Destinations__enrollment-api__Address: http://enrollment:8080/
+      ReverseProxy__Clusters__claims__Destinations__claims-api__Address: http://claims:8080/
+      ReverseProxy__Clusters__disbursements__Destinations__disbursements-api__Address: http://disbursements:8080/
+    ports:
+      - "5000:8080"
+    depends_on:
+      identity:
+        condition: service_started
+      enrollment:
+        condition: service_started
+      claims:
+        condition: service_started
+      disbursements:
+        condition: service_started
+
+volumes:
+  sqlserver-data:

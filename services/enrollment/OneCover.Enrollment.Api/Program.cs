@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -14,14 +13,19 @@ using OneCover.Enrollment.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var connectionString = builder.Configuration.GetConnectionString("EnrollmentDb")
-    ?? throw new InvalidOperationException("ConnectionStrings:EnrollmentDb is not configured.");
-var jwtKey = builder.Configuration["Jwt:Key"]
-    ?? throw new InvalidOperationException("Jwt:Key is not configured.");
-var jwtIssuer = builder.Configuration["Jwt:Issuer"]
-    ?? throw new InvalidOperationException("Jwt:Issuer is not configured.");
-var jwtAudience = builder.Configuration["Jwt:Audience"]
-    ?? throw new InvalidOperationException("Jwt:Audience is not configured.");
+static string RequiredSetting(IConfiguration configuration, string name)
+{
+    var value = configuration[name];
+    return string.IsNullOrWhiteSpace(value)
+        ? throw new InvalidOperationException($"Setting '{name}' is missing or blank.")
+        : value;
+}
+
+var connectionString = RequiredSetting(builder.Configuration, "ConnectionStrings:EnrollmentDb");
+var jwtKey = RequiredSetting(builder.Configuration, "Jwt:Key");
+var jwtIssuer = RequiredSetting(builder.Configuration, "Jwt:Issuer");
+var jwtAudience = RequiredSetting(builder.Configuration, "Jwt:Audience");
+_ = RequiredSetting(builder.Configuration, "InternalApiKey");
 if (Encoding.UTF8.GetByteCount(jwtKey) < 32)
 {
     throw new InvalidOperationException("Jwt:Key must be at least 32 bytes long.");
@@ -89,6 +93,7 @@ builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        options.MapInboundClaims = false;
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -98,20 +103,26 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
-            RoleClaimType = ClaimTypes.Role,
-            NameClaimType = ClaimTypes.NameIdentifier
+            RoleClaimType = "role",
+            NameClaimType = "sub"
         };
     });
 builder.Services.AddAuthorization();
+builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() ||
+    builder.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
 {
     await using var scope = app.Services.CreateAsyncScope();
     var db = scope.ServiceProvider.GetRequiredService<EnrollmentDbContext>();
     await db.Database.MigrateAsync();
+}
+
+if (app.Environment.IsDevelopment())
+{
     app.MapOpenApi();
     app.MapScalarApiReference("/scalar", options =>
         options.WithTitle("OneCover Enrollment API")
@@ -124,4 +135,5 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHealthChecks("/health");
 app.Run();

@@ -26,13 +26,15 @@ public class ClaimServiceTests
     // Returns whatever enrollment the test gives it (or null for "no such enrollment").
     private class FakeEnrollmentClient(EnrollmentTerms? terms) : IEnrollmentClient
     {
-        public Task<EnrollmentTerms?> GetEnrollmentAsync(int enrollmentId) => Task.FromResult(terms);
+        public Task<EnrollmentTerms?> GetEnrollmentAsync(
+            int enrollmentId,
+            CancellationToken cancellationToken = default) => Task.FromResult(terms);
     }
 
     // Returns the given salary for any member, or null for "Identity doesn't know this member".
     private class FakeIdentityClient(decimal? salary) : IIdentityClient
     {
-        public Task<MemberInfo?> GetMemberAsync(int memberId) =>
+        public Task<MemberInfo?> GetMemberAsync(int memberId, CancellationToken cancellationToken = default) =>
             Task.FromResult(salary is null ? null : new MemberInfo(memberId, salary.Value));
     }
 

@@ -17,7 +17,10 @@ public class FakeClaimService : IClaimService
     /// <summary>The request body the controller passed to SubmitAsync.</summary>
     public SubmitClaimRequest? RequestSeen { get; private set; }
 
-    public Task<ClaimDto> SubmitAsync(int memberId, SubmitClaimRequest request)
+    public Task<ClaimDto> SubmitAsync(
+        int memberId,
+        SubmitClaimRequest request,
+        CancellationToken cancellationToken = default)
     {
         MemberIdSeen = memberId;
         RequestSeen = request;

@@ -3,6 +3,7 @@
 **/obj/
 **/.vs/
 .git/
+.env
 web/node_modules/
 **/appsettings.Development.json
 **/*.local.md

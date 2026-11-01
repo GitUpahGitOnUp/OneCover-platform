@@ -42,11 +42,14 @@ public class ClaimService : IClaimService
     }
 
     /// <inheritdoc />
-    public async Task<ClaimDto> SubmitAsync(int memberId, SubmitClaimRequest request)
+    public async Task<ClaimDto> SubmitAsync(
+        int memberId,
+        SubmitClaimRequest request,
+        CancellationToken cancellationToken = default)
     {
         // 1. Look up the enrollment. "Doesn't exist" and "belongs to someone else" give the SAME 404, so the API
         //    never confirms that another member's enrollment exists.
-        var enrollment = await _enrollments.GetEnrollmentAsync(request.EnrollmentId);
+        var enrollment = await _enrollments.GetEnrollmentAsync(request.EnrollmentId, cancellationToken);
         if (enrollment is null || enrollment.MemberId != memberId)
         {
             throw new NotFoundException("Enrollment", request.EnrollmentId);
@@ -67,7 +70,7 @@ public class ClaimService : IClaimService
         }
 
         // 4. The salary lives in Identity. A valid token for a member Identity doesn't know is a data problem.
-        var member = await _identity.GetMemberAsync(memberId)
+        var member = await _identity.GetMemberAsync(memberId, cancellationToken)
             ?? throw new NotFoundException("Member", memberId);
 
         // 5. Calculate the benefit, once, on the server. The request carries no amounts.

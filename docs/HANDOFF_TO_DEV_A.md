@@ -25,6 +25,9 @@ Disbursements Dockerfile #20, Claims no self-approval #21 (stacked on #16). The 
 and #18 is stacked on #16 and #20 on #19. Merge in the order of the checklist below. After each squash-merge GitHub normally retargets the
 next PR to `main`; if it does not, or if conflicts appear, tell B.
 
+The checklist branches have been merged locally into `DeveloperABranch` in the listed order.
+This does not constitute GitHub PR approval or merging into `main`; branch-protection setup remains a GitHub-side task.
+
 - [ ] 1. CI approved and merged
 - [ ] 1b. `build-and-test` set as a required check on `main`
 - [ ] 2. Disbursements `/health` approved and merged
@@ -56,8 +59,9 @@ the PR. The whole solution builds in well under a minute, so one job is simpler.
 
 ## 2. Things B needs from you (these block B's work)
 
-- [ ] **Enrollment `GET /internal/enrollments/{id}`**: B's Claims service uses a stub until this exists. Claims needs exactly these
-      fields (B's temporary shape, in `services/claims/.../Clients/EnrollmentTerms.cs`; tell B if yours will differ):
+- [x] **Enrollment `GET /internal/enrollments/{id}`**: implemented with the contract below. `coverageStartDate` is the enrollment's `EnrolledOn` date.
+      Claims calls it with the shared `X-Internal-Api-Key` header.
+          fields (matching the Claims client contract in `services/claims/.../Clients/EnrollmentTerms.cs`):
 
   | Field | Type | Meaning |
   |---|---|---|
@@ -71,29 +75,30 @@ the PR. The whole solution builds in well under a minute, so one job is simpler.
   | `eliminationDays` | int | unpaid waiting days (7 STD, 90 LTD) |
 
   Return 404 when there is no such enrollment. Claims calls it with the shared `X-Internal-Api-Key` header.
-- [ ] **Identity `GET /internal/members/{id}`**: the plan lists it, but B cannot find it in the repo (`main` or `DeveloperABranch`).
-      Is it built, and on which branch? B wants to build the real Identity client first, against it.
-      Claims reads only `id` and `annualSalary` from the response (a number; B assumes the default camelCase JSON names).
+- [x] **Identity `GET /internal/members/{id}`**: implemented with the response shape below; it does not expose `passwordHash` or `ssnLast4`.
+      Claims is wired to call it with the shared `X-Internal-Api-Key` header.
 - [ ] **Open question: `DisbursementPaid` / `DisbursementFailed` sync back to Claims.** B proposes an HTTP callback to an
       `/internal/**` endpoint on Claims, same `X-Internal-Api-Key` header. Not agreed yet, and it is optional. B cuts it first if behind.
 
 ## 3. Things for you to set up (your areas: gateway and docker-compose)
 
-- [ ] **Gateway routes** (default JWT policy). Do **not** route `/internal/**`:
+- [x] **Gateway routes** (default JWT policy). Do **not** route `/internal/**`:
   - `/api/disbursements/**` and `/api/admin/disbursements/**` -> Disbursements (this already covers `/summary`)
   - `/api/claims/**` and `/api/admin/claims/**` -> Claims (all built now, see PRs 6, 7 and 8; this covers `/summary` and `/resend-payout`)
-- [ ] **docker-compose settings per service** (env vars, never in source control):
+- [x] **docker-compose settings per service** (env vars, never in source control):
 
   | Service | Port | Env vars |
   |---|---|---|
+  | Identity | 5001 | `ConnectionStrings__IdentityDb`, `Jwt__Key`, `Jwt__Issuer`, `Jwt__Audience`, `InternalApiKey` |
+  | Enrollment | 5002 | `ConnectionStrings__EnrollmentDb`, `Jwt__Key`, `Jwt__Issuer`, `Jwt__Audience`, `InternalApiKey` |
   | Disbursements | 5004 | `ConnectionStrings__DisbursementsDb`, `Jwt__Key`, `Jwt__Issuer`, `Jwt__Audience`, `InternalApiKey` |
-  | Claims | 5003 | `ConnectionStrings__ClaimsDb`, `Jwt__Key`, `Jwt__Issuer`, `Jwt__Audience`, `InternalApiKey` (same value as Disbursements), `Disbursements__BaseUrl` (for example `http://disbursements:5004` on the compose network). **Both of the last two are required: Claims refuses to start without them.** |
+  | Claims | 5003 | `ConnectionStrings__ClaimsDb`, `Jwt__Key`, `Jwt__Issuer`, `Jwt__Audience`, `InternalApiKey`, `Identity__BaseUrl`, `Enrollment__BaseUrl`, `Disbursements__BaseUrl` |
 
-  `Jwt__Key` must be identical in every service. `InternalApiKey` must be the same in Claims and Disbursements.
-- [ ] **Container health check**: Disbursements answers `GET /health` with 200 `Healthy` and no token (after PR 2 merges).
-      Claims does the same (PR 9). The images contain no `curl` or `wget`, so a compose `healthcheck: test: curl ...` will fail.
-      Until that is solved, use `depends_on: condition: service_started`. Tell B if you want a probe added to the images.
-      Containers listen on **8080 inside**; map host ports 5003 (Claims) and 5004 (Disbursements) to 8080.
+  `Jwt__Key` must be identical in every service. `InternalApiKey` must be the same in every API service.
+  Claims' three base URLs are required. Compose uses service DNS names and port 8080 inside the network.
+- [x] **Container health check**: Identity, Enrollment, Claims, and Disbursements expose anonymous liveness `GET /health`.
+      Compose uses `service_started` for API dependencies; the images intentionally contain no `curl` or `wget`.
+      Containers listen on **8080 inside**; map host ports 5001 (Identity), 5002 (Enrollment), 5003 (Claims), and 5004 (Disbursements) to 8080.
 - [ ] Angular base URL pointing at the gateway (`web/` does not exist yet).
 
 ## 4. Docs and contracts changes B will send you
@@ -149,7 +154,7 @@ Enums are sent and accepted as **strings** (`"InReview"`), never numbers. Dates 
 Answers **204** whether it created the disbursement or it already existed (idempotent). Claims tries up to 3 times, retrying only network
 errors, timeouts, 5xx, 408 and 429, and gives up at once on any other 4xx.
 
-### 6.3 What Claims will call on A's services (A builds these; B swaps its stubs for them)
+### 6.3 What Claims calls on A's services
 Both calls send `X-Internal-Api-Key`. Return **404** (empty or ProblemDetails body) when the id does not exist.
 
 **Enrollment `GET /internal/enrollments/{id}`** -> 200:
@@ -163,8 +168,8 @@ Both calls send `X-Internal-Api-Key`. Return **404** (empty or ProblemDetails bo
 **Identity `GET /internal/members/{id}`** -> 200. Claims reads only `id` and `annualSalary` (number), but the plan says to return
 `id, role, firstName, lastName, hireDate, annualSalary, employmentType`. Never return `passwordHash` or `ssnLast4`.
 
-How B's stubs behave today, so tests can tell stub from real: the stub Enrollment client invents an STD, active, 60%, max 1500, 7-day
-enrollment whose `memberId` equals the enrollment id. The stub Identity client returns `annualSalary` 78000 for any id.
+Claims now calls the real Identity and Enrollment endpoints. Canned client implementations remain available for isolated tests;
+the application registers the HTTP clients.
 
 ### 6.4 Claims public API (what the gateway and Angular will call)
 All under `/api`. Member = role `Member`, Admin = role `Admin`.
@@ -199,11 +204,10 @@ Denied; Approved or Denied -> Closed. A claim whose `totalBenefit` is 0 cannot b
 Due date = approval date + 7 days. Disbursements refuses an amount of 0.
 
 ### 6.6 Running and testing locally
-- Settings (env vars in Docker, `dotnet user-secrets` locally): see the table in Section 3. Both Claims and Disbursements **refuse to start**
-  if a required setting is blank. `Jwt__Key` identical everywhere; `InternalApiKey` identical in Claims and Disbursements.
+- Settings (env vars in Docker, `dotnet user-secrets` locally): see the table in Section 3. API services **refuse to start**
+  if a required setting is blank. `Jwt__Key` and `InternalApiKey` must be identical across the API services.
 - Local ports without Docker (the `http` launch profile): Claims 5094, Disbursements 5175. Compose ports: Claims 5003, Disbursements 5004.
-- Unit and integration tests need no database or running service. From the repo root: `dotnet test` (about 195 Claims tests and 35+ Disbursements
-  tests on the tip of the Claims stack). Run it after merging to make sure nothing of A's broke B's tests.
+- Unit and integration tests need no database or running service. From the repo root: `dotnet test`.
 - Development only: Disbursements has `GET /dev/token?userId=3&role=Admin`, which returns a test JWT (it does not exist outside Development,
   so it never works in Docker). Real tokens come from Identity.
 

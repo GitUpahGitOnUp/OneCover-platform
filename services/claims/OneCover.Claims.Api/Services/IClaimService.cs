@@ -13,7 +13,10 @@ public interface IClaimService
     /// </summary>
     /// <param name="memberId">The member filing the claim (from the JWT, never the request).</param>
     /// <param name="request">The enrollment, reason and leave dates.</param>
-    Task<ClaimDto> SubmitAsync(int memberId, SubmitClaimRequest request);
+    Task<ClaimDto> SubmitAsync(
+        int memberId,
+        SubmitClaimRequest request,
+        CancellationToken cancellationToken = default);
 
     /// <summary>Lists the signed-in member's own claims, newest first.</summary>
     Task<List<ClaimDto>> ListForMemberAsync(int memberId, int page, int pageSize);

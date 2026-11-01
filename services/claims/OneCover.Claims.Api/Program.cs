@@ -44,11 +44,9 @@ builder.Services.AddScoped<IClaimService, ClaimService>();
 // The benefit calculator keeps no state, so one shared ("singleton") instance is enough.
 builder.Services.AddSingleton<IBenefitCalculator, BenefitCalculator>();
 
-// TEMPORARY stand-ins for the other services. Swap each for a real HTTP client once the endpoint exists:
-//   Identity   -> GET /internal/members/{id}      (in the plan; not found in the repo yet)
-//   Enrollment -> GET /internal/enrollments/{id}  (not built yet)
-builder.Services.AddSingleton<IEnrollmentClient, StubEnrollmentClient>();
-builder.Services.AddSingleton<IIdentityClient, StubIdentityClient>();
+// Claims gets member and enrollment data only through their internal HTTP APIs.
+var enrollmentBaseUrl = RequiredServiceUri(builder.Configuration, "Enrollment:BaseUrl");
+var identityBaseUrl = RequiredServiceUri(builder.Configuration, "Identity:BaseUrl");
 
 builder.Services.AddScoped<IAdminClaimService, AdminClaimService>();
 
@@ -65,6 +63,19 @@ if (!Uri.TryCreate(disbursementsBaseUrl, UriKind.Absolute, out var disbursements
 
 // Bind the "Disbursements" section (BaseUrl, MaxAttempts, RetryDelay) to DisbursementsOptions.
 builder.Services.Configure<DisbursementsOptions>(builder.Configuration.GetSection(DisbursementsOptions.SectionName));
+
+builder.Services.AddHttpClient<IEnrollmentClient, HttpEnrollmentClient>(client =>
+{
+    client.BaseAddress = enrollmentBaseUrl;
+    client.DefaultRequestHeaders.Add("X-Internal-Api-Key", internalApiKey);
+    client.Timeout = TimeSpan.FromSeconds(5);
+});
+builder.Services.AddHttpClient<IIdentityClient, HttpIdentityClient>(client =>
+{
+    client.BaseAddress = identityBaseUrl;
+    client.DefaultRequestHeaders.Add("X-Internal-Api-Key", internalApiKey);
+    client.Timeout = TimeSpan.FromSeconds(5);
+});
 
 // A "typed HttpClient": DI builds an HttpClient already set up for Disbursements and hands it to HttpClaimEventPublisher.
 // The base address and the shared key header are set once here, so no caller can forget them. Reusing clients this way
@@ -149,6 +160,14 @@ app.UseExceptionHandler();   // first, so it can catch errors thrown by everythi
 // ProblemDetails shape, using the AddProblemDetails registration above, so every error looks the same.
 app.UseStatusCodePages();
 
+if (app.Environment.IsDevelopment() ||
+    builder.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    var db = scope.ServiceProvider.GetRequiredService<ClaimsDbContext>();
+    await db.Database.MigrateAsync();
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -165,6 +184,18 @@ app.MapControllers();
 app.MapHealthChecks("/health");
 
 app.Run();
+
+static Uri RequiredServiceUri(IConfiguration configuration, string name)
+{
+    var value = RequiredSetting(configuration, name);
+    if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) ||
+        uri.Scheme is not ("http" or "https"))
+    {
+        throw new InvalidOperationException($"Setting '{name}' must be an absolute HTTP or HTTPS URL.");
+    }
+
+    return new Uri(uri.AbsoluteUri.TrimEnd('/') + "/", UriKind.Absolute);
+}
 
 // Top-level statements hide the Program class the compiler generates. Declaring it here as public and partial
 // lets the integration tests start this whole app in memory with WebApplicationFactory<Program>.
