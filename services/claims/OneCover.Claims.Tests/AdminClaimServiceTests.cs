@@ -126,6 +126,23 @@ public class AdminClaimServiceTests
     }
 
     [Fact]
+    public async Task TheMemberWhoFiledAClaim_CannotApproveIt_AndNothingIsSent()
+    {
+        var db = Guid.NewGuid().ToString();
+        var id = await FileClaim(db, memberId: 42);
+        var publisher = new FakePublisher();
+        var service = NewService(db, publisher);
+        await service.UpdateStatusAsync(id, 900, To(ClaimStatus.InReview));
+
+        // The caller's id (42, from the JWT) is the claim's own member, so the approval is refused with a 409.
+        await Assert.ThrowsAsync<BusinessRuleException>(() => service.UpdateStatusAsync(id, 42, To(ClaimStatus.Approved)));
+
+        var saved = await new ClaimRepository(OpenDb(db)).GetByIdAsync(id);
+        Assert.Equal(ClaimStatus.InReview, saved!.Status);
+        Assert.Empty(publisher.Published);
+    }
+
+    [Fact]
     public async Task ApprovingAClaim_SendsClaimApproved_WithTheClaimsOwnFigures()
     {
         var db = Guid.NewGuid().ToString();

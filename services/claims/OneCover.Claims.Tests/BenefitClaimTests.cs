@@ -187,6 +187,31 @@ public class BenefitClaimTests
     }
 
     [Fact]
+    public void MoveTo_Refuses_TheMemberWhoFiledTheClaim_ApprovingIt_AndChangesNothing()
+    {
+        // Member 42 filed the claim. Even if 42 is later made an admin, another admin must approve it.
+        var claim = Submit(memberId: 42);
+        claim.MoveTo(ClaimStatus.InReview, changedByUserId: 1, note: null, changedAt: Now);
+
+        Assert.Throws<BusinessRuleException>(() =>
+            claim.MoveTo(ClaimStatus.Approved, changedByUserId: 42, note: null, changedAt: Now));
+
+        Assert.Equal(ClaimStatus.InReview, claim.Status);
+        Assert.Equal(2, claim.History.Count);   // the refused approval left no history row
+    }
+
+    [Fact]
+    public void MoveTo_AllowsADifferentAdmin_ToApprove()
+    {
+        var claim = Submit(memberId: 42);
+        claim.MoveTo(ClaimStatus.InReview, changedByUserId: 42, note: null, changedAt: Now);   // reviewing is not approving
+
+        claim.MoveTo(ClaimStatus.Approved, changedByUserId: 900, note: null, changedAt: Now);
+
+        Assert.Equal(ClaimStatus.Approved, claim.Status);
+    }
+
+    [Fact]
     public void MoveTo_StillAllowsDenying_AClaimWithNothingPayable()
     {
         var claim = Submit(totalBenefit: 0m);
