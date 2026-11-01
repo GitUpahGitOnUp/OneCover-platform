@@ -1,0 +1,10 @@
+# Keep the build context small and keep secrets/local files out of images.
+**/bin/
+**/obj/
+**/.vs/
+.git/
+web/node_modules/
+**/appsettings.Development.json
+**/*.local.md
+CLAUDE.local.md
+DEV_JOURNAL.md
