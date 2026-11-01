@@ -1,0 +1,51 @@
+# Continuous integration: GitHub runs this on every pull request and every push to main.
+# `main` is protected, so a PR can only merge when this "build-and-test" check is green.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Cancel an older run of the same branch when a newer commit is pushed, so we don't waste minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# The job only needs to read the code, so give the token the smallest permission.
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Install the .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # One job builds and tests the whole solution, on purpose. A "required" check that is skipped by a
+      # path filter stays "pending" forever and blocks the PR, so we always run it. The build is fast.
+      - name: Restore packages
+        run: dotnet restore OneCover.slnx
+
+      - name: Build
+        run: dotnet build OneCover.slnx --no-restore --configuration Release
+
+      # The tests use fake settings and in-memory hosting, so they need no database or secrets.
+      - name: Test
+        run: dotnet test OneCover.slnx --no-build --configuration Release --logger "trx;LogFileName=results.trx"
+
+      # Keep the test results so a failure can be inspected from the run page (runs even if tests failed).
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: "**/TestResults/*.trx"
+          if-no-files-found: ignore
