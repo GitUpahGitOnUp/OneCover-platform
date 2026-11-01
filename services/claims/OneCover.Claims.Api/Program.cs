@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using OneCover.Claims.Api.Data;
 using OneCover.Claims.Api.Errors;
+using OneCover.Claims.Api.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -34,6 +35,9 @@ builder.Services.AddDbContext<ClaimsDbContext>(options =>
     options.UseSqlServer(connectionString));
 
 // ---- Our own services --------------------------------------------------------------------
+// "Scoped" = one instance per HTTP request, which matches the DbContext's lifetime.
+builder.Services.AddScoped<IClaimRepository, ClaimRepository>();
+
 // TimeProvider.System is the real clock. A "singleton" = one shared instance for the whole app.
 // Anything that needs "today" or "now" asks this instead of DateTime.Now, so tests can supply a fake clock.
 builder.Services.AddSingleton(TimeProvider.System);
