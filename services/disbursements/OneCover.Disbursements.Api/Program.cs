@@ -133,6 +133,11 @@ builder.Services.AddOpenApi(options =>
     });
 });
 
+// Registers .NET's built-in health check system. With no checks added, it just reports "Healthy" whenever the
+// app is up and answering, which is what Docker and the gateway need to ask "is this service alive?".
+// It deliberately does NOT test the database: a database outage should not make Docker restart a working API.
+builder.Services.AddHealthChecks();
+
 var app = builder.Build();
 
 // ---- Request pipeline (ORDER MATTERS: each request passes through these top to bottom) ----
@@ -158,6 +163,9 @@ app.UseAuthentication();     // 1) work out WHO the caller is (read the token)
 app.UseAuthorization();      // 2) check whether that caller is ALLOWED (roles)
 
 app.MapControllers();
+
+// GET /health answers 200 "Healthy" with no login, so Docker can probe it. It returns no data, so being public is safe.
+app.MapHealthChecks("/health");
 
 app.Run();
 
