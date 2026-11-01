@@ -86,7 +86,8 @@ Gateway column = public path Angular calls. Auth: Anon / Any (logged in) / Membe
 | POST | /api/claims | Member | file a claim |
 | GET | /api/admin/claims | Admin | all claims (filterable) |
 | PUT | /api/admin/claims/{id}/status | Admin | move claim through workflow; Approved publishes `ClaimApproved` |
-| GET | /api/admin/claims/summary | Admin | counts for dashboard |
+| GET | /api/admin/claims/summary | Admin | counts for dashboard, including `awaitingPayoutCount` |
+| POST | /api/admin/claims/{id}/resend-payout | Admin | re-send `ClaimApproved` for an approved claim whose payout was never confirmed |
 
 ### Disbursements (B)
 | Method | Path | Auth | Purpose |
@@ -131,7 +132,7 @@ Within a phase, A and B work in parallel. Each box is one PR-sized chunk.
 - [ ] A: GitHub repo, collaborator, branch protection on `main` (`.gitignore`, README, CLAUDE.md done)
 - [x] A: `.gitignore`, README, CLAUDE.md
 - [ ] A: `docker-compose.yml` (SQL Server only); [x] folder skeleton
-- [ ] B: GitHub Actions: build + test on PR, path filters per service
+- [x] B: GitHub Actions: build + test on PR (PR #10; deliberately no path filters, see `docs/HANDOFF_TO_DEV_A.md`)
 - [ ] Both: review this doc, agree on endpoint table + event shapes
 - [ ] Both: `contracts/` project with DTOs and events
 - [ ] Both: decide event transport
@@ -139,18 +140,18 @@ Within a phase, A and B work in parallel. Each box is one PR-sized chunk.
 
 ### Phase 1 – Foundations (parallel)
 - [ ] A: Identity service: User, Role, register/login, JWT, /api/me (includes FMLA eligibility via `IEligibilityService`), /internal/members
-- [ ] B: Disbursements service: Disbursement entity, repository, service, member + admin endpoints
-- [ ] B: Disbursements consumes `ClaimApproved` (test with a hand-published event)
-- [ ] B: dev-only test JWTs so B can call Admin/Member endpoints before Identity is ready
+- [x] B: Disbursements service: Disbursement entity, repository, service, member + admin endpoints
+- [x] B: Disbursements consumes `ClaimApproved` (test with a hand-published event)
+- [x] B: dev-only test JWTs so B can call Admin/Member endpoints before Identity is ready
 
 ### Phase 2 – Core domain (parallel)
 - [ ] A: Enrollment service: Plan, PlanRate, CoverageTier, seed data
 - [ ] A: Enrollment rules: plan is active, no duplicate active enrollment, tier has a PlanRate, STD/LTD only EmployeeOnly. (The monolith has no employment-type rule for enrolling; any such restriction is a new decision.)
 - [ ] A: Enrollments: enroll with tier, rate snapshot, estimated per-paycheck deduction
 - [ ] A: /internal/enrollments/{id}
-- [ ] B: Claims service: BenefitClaim, ClaimWorkflow, BenefitCalculator
-- [ ] B: Claims uses an `IEnrollmentClient` (stub first, then the real HTTP client once A's endpoint exists)
-- [ ] B: file claim, admin status change, publish `ClaimApproved`
+- [x] B: Claims service: BenefitClaim, ClaimWorkflow, BenefitCalculator
+- [ ] B: Claims uses an `IEnrollmentClient` (stub done; the real HTTP client waits for A's `/internal/enrollments/{id}`)
+- [x] B: file claim, admin status change, publish `ClaimApproved` (also the payout alert and manual re-send; no outbox by design)
 
 ### Phase 3 – Integration
 - [ ] A: Gateway (YARP) with the route table above
@@ -188,7 +189,7 @@ Within a phase, A and B work in parallel. Each box is one PR-sized chunk.
 Never cut: JWT-only identity, service-owned databases, tier pricing, disbursement flow.
 
 ## 9. Open questions
-- Event transport: RabbitMQ or simpler?
+- Event transport: RabbitMQ or simpler? B built `ClaimApproved` as an HTTP POST to Disbursements' `/internal/events/claim-approved` (shared key, 3 tries). A to confirm.
 - Is Docker required by the assignment, or just compose for demo?
 - Which plan types get tiers: Dental, Vision, Accident, CriticalIllness, Life, and Pet use all four tiers; STD/LTD are EmployeeOnly.
 - Pay frequency for the deduction display: biweekly (26 pay periods/year).
