@@ -21,7 +21,7 @@ Please review in this order. CI first, because once it is merged every later PR 
 
 GitHub PR numbers: CI #10, this handoff doc #11, Claims repository #12, Disbursements summary #13, Disbursements health #14,
 Claims file-a-claim #15, Claims payout alert #16, Claims admin and approval #17, Claims health #18, Claims Dockerfile #19,
-Disbursements Dockerfile #20. The Claims PRs #12, #15, #17, #16 are **stacked** (each is based on the previous one's branch, not on `main`),
+Disbursements Dockerfile #20, Claims no self-approval #21 (stacked on #16). The Claims PRs #12, #15, #17, #16 are **stacked** (each is based on the previous one's branch, not on `main`),
 and #18 is stacked on #16 and #20 on #19. Merge in the order of the checklist below. After each squash-merge GitHub normally retargets the
 next PR to `main`; if it does not, or if conflicts appear, tell B.
 
@@ -49,8 +49,7 @@ next PR to `main`; if it does not, or if conflicts appear, tell B.
 - [ ] 11. Disbursements Dockerfile (`feature/disbursements-dockerfile`, #20): same pattern. **Built on top of PR 10** (reuses its `.dockerignore`).
       `docker build -f services/disbursements/OneCover.Disbursements.Api/Dockerfile -t onecover-disbursements .`
       Both images were built and started with dummy settings; auth-protected routes answered 401 as expected, and Claims `/health` answered 200.
-- [ ] 12. Claims no self-approval (`feature/claims-no-self-approval`): the member who filed a claim can't approve it (409). **Built on top of PR 8.**
-      PR number: see GitHub (B adds it here once opened).
+- [ ] 12. Claims no self-approval (`feature/claims-no-self-approval`, #21): the member who filed a claim can't approve it (409). **Built on top of PR 8 (#16).**
 
 Note on CI: it deliberately has **no path filters**. A required check that a path filter skips stays "pending" forever and blocks
 the PR. The whole solution builds in well under a minute, so one job is simpler. Tell B if you want filters anyway.
