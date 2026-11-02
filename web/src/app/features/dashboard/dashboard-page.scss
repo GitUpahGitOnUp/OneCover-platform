@@ -119,6 +119,12 @@ dl {
   }
 }
 
+.next-step-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
 .error-card {
   color: #9e3029;
 }
@@ -131,5 +137,10 @@ dl {
 
   .dashboard-grid {
     grid-template-columns: 1fr;
+  }
+
+  .next-step-card mat-card-content {
+    align-items: start;
+    flex-direction: column;
   }
 }

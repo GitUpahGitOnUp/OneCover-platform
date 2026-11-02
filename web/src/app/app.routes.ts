@@ -24,5 +24,11 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/coverage/coverage-page').then((module) => module.CoveragePage),
   },
+  {
+    path: 'claims',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/claims/claims-page').then((module) => module.ClaimsPage),
+  },
   { path: '**', redirectTo: 'dashboard' },
 ];

@@ -1,0 +1,304 @@
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">{{ isAdmin ? 'Claims administration' : 'Leave and disability' }}</p>
+    <h1>{{ isAdmin ? 'Claims review' : 'Your claims' }}</h1>
+    <p>
+      {{
+        isAdmin
+          ? 'Review submitted claims, manage their workflow, and follow up on payouts.'
+          : 'File a claim against active short- or long-term disability coverage and follow its status.'
+      }}
+    </p>
+  </div>
+</section>
+
+@if (successMessage()) {
+  <p class="notice success" role="status">{{ successMessage() }}</p>
+}
+@if (errorMessage()) {
+  <p class="notice error" role="alert">{{ errorMessage() }}</p>
+}
+
+@if (isAdmin && summary(); as claimSummary) {
+  <section class="summary-grid" aria-label="Claim summary">
+    <mat-card class="summary-card total-card">
+      <mat-card-content>
+        <span>Total claims</span>
+        <strong>{{ claimSummary.totalClaims }}</strong>
+      </mat-card-content>
+    </mat-card>
+    @for (status of claimStatuses; track status) {
+      <mat-card class="summary-card">
+        <mat-card-content>
+          <span>{{ status }}</span>
+          <strong>{{ statusCount(status) }}</strong>
+        </mat-card-content>
+      </mat-card>
+    }
+    <mat-card class="summary-card payout-card">
+      <mat-card-content>
+        <span>Awaiting payout confirmation</span>
+        <strong>{{ claimSummary.awaitingPayoutCount }}</strong>
+      </mat-card-content>
+    </mat-card>
+  </section>
+}
+
+@if (!isAdmin) {
+  <mat-card class="submit-card">
+    <mat-card-header>
+      <mat-card-title>File a disability claim</mat-card-title>
+      <mat-card-subtitle>
+        Claim amounts and eligibility are validated and calculated by the Claims service.
+      </mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      @if (isLoadingEnrollments()) {
+        <p>Loading your active disability coverage...</p>
+      } @else if (enrollmentError()) {
+        <p class="notice error" role="alert">{{ enrollmentError() }}</p>
+      } @else if (eligibleEnrollments().length === 0) {
+        <p class="empty-note">
+          You need active STD or LTD coverage to file a disability claim. Enroll in eligible
+          coverage first.
+        </p>
+      } @else {
+        <form [formGroup]="claimForm" (ngSubmit)="submitClaim()">
+          <div class="claim-form-grid">
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Disability coverage</mat-label>
+              <mat-select formControlName="enrollmentId">
+                @for (enrollment of eligibleEnrollments(); track enrollment.id) {
+                  <mat-option [value]="enrollment.id.toString()">
+                    {{ enrollment.planName }} ({{ enrollment.planType }}) · active since
+                    {{ enrollment.enrolledOn | date: 'mediumDate' }}
+                  </mat-option>
+                }
+              </mat-select>
+              @if (claimForm.controls.enrollmentId.hasError('required')) {
+                <mat-error>Select active STD or LTD coverage.</mat-error>
+              }
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Reason for leave</mat-label>
+              <textarea matInput rows="3" maxlength="1000" formControlName="reason"></textarea>
+              <mat-hint align="end">{{ claimForm.controls.reason.value.length }}/1000</mat-hint>
+              @if (claimForm.controls.reason.hasError('required')) {
+                <mat-error>Enter a reason for your leave.</mat-error>
+              } @else if (
+                claimForm.controls.reason.hasError('pattern') ||
+                claimForm.controls.reason.hasError('whitespace')
+              ) {
+                <mat-error>Reason cannot be blank.</mat-error>
+              }
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Leave start date</mat-label>
+              <input
+                matInput
+                type="date"
+                formControlName="startDate"
+                [min]="selectedEnrollment()?.enrolledOn ?? null"
+              />
+              @if (claimForm.controls.startDate.hasError('required')) {
+                <mat-error>Choose a start date.</mat-error>
+              }
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Leave end date</mat-label>
+              <input matInput type="date" formControlName="endDate" />
+              @if (claimForm.controls.endDate.hasError('required')) {
+                <mat-error>Choose an end date.</mat-error>
+              }
+            </mat-form-field>
+          </div>
+
+          @if (
+            getDateRangeError(claimForm.controls.startDate.value, claimForm.controls.endDate.value);
+            as dateError
+          ) {
+            <p class="field-error" role="alert">{{ dateError }}</p>
+          }
+
+          <button mat-flat-button color="primary" type="submit" [disabled]="isSubmitting()">
+            @if (isSubmitting()) {
+              <mat-spinner diameter="20" />
+            } @else {
+              Submit claim
+            }
+          </button>
+        </form>
+      }
+    </mat-card-content>
+  </mat-card>
+}
+
+@if (isAdmin) {
+  <section class="filters">
+    <mat-form-field appearance="outline">
+      <mat-label>Filter by status</mat-label>
+      <mat-select [value]="selectedStatus()" (selectionChange)="setStatusFilter($event.value)">
+        <mat-option value="">All statuses</mat-option>
+        @for (status of claimStatuses; track status) {
+          <mat-option [value]="status">{{ status }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+    <mat-checkbox
+      [checked]="awaitingPayoutOnly()"
+      (change)="setAwaitingPayoutFilter($event.checked)"
+    >
+      Awaiting payout confirmation
+    </mat-checkbox>
+  </section>
+}
+
+<section class="claims-section">
+  <div class="section-heading">
+    <h2>{{ isAdmin ? 'Claims queue' : 'Claim history' }}</h2>
+    <button mat-button type="button" (click)="refreshClaims()">Refresh</button>
+  </div>
+
+  @if (isLoadingClaims()) {
+    <mat-card class="state-card"><mat-card-content>Loading claims...</mat-card-content></mat-card>
+  } @else {
+    <div class="claims-list">
+      @for (claim of claims(); track claim.id) {
+        <mat-card class="claim-card">
+          <mat-card-header>
+            <div class="claim-title">
+              <div>
+                <mat-card-title>Claim #{{ claim.id }}</mat-card-title>
+                <mat-card-subtitle>
+                  {{ claim.startDate | date: 'mediumDate' }} –
+                  {{ claim.endDate | date: 'mediumDate' }} · {{ claim.status }}
+                </mat-card-subtitle>
+              </div>
+              <span
+                class="status-chip"
+                [class]="'status-chip status-' + claim.status.toLowerCase()"
+              >
+                {{ claim.status }}
+              </span>
+            </div>
+          </mat-card-header>
+          <mat-card-content>
+            @if (isAdmin) {
+              <div class="claim-facts">
+                <span>Member #{{ claim.memberId }}</span>
+                <span>Enrollment #{{ claim.enrollmentId }}</span>
+                <span>Submitted {{ claim.submittedAt | date: 'medium' }}</span>
+              </div>
+            }
+            <button
+              mat-button
+              type="button"
+              class="refresh-detail-button"
+              (click)="refreshClaimDetails(claim.id)"
+            >
+              Refresh claim details
+            </button>
+            <p class="claim-reason">{{ claim.reason }}</p>
+            <div class="benefit-grid">
+              <div>
+                <span>Weekly benefit</span><strong>{{ claim.weeklyBenefit | currency }}</strong>
+              </div>
+              <div>
+                <span>Estimated total benefit</span
+                ><strong>{{ claim.totalBenefit | currency }}</strong>
+              </div>
+              <div>
+                <span>Plan benefit</span><strong>{{ claim.planBenefitPercent | percent }}</strong>
+              </div>
+              <div>
+                <span>Elimination period</span><strong>{{ claim.planEliminationDays }} days</strong>
+              </div>
+            </div>
+
+            @if (claim.awaitingPayout) {
+              <p class="payout-warning" role="status">
+                Approved, but Disbursements has not confirmed the payout yet.
+              </p>
+            } @else if (claim.payoutRequestedAt) {
+              <p class="payout-confirmed">
+                Payout request received {{ claim.payoutRequestedAt | date: 'medium' }}.
+              </p>
+            }
+
+            @if (isAdmin && claim.nextStatuses.length > 0) {
+              <div class="admin-actions">
+                <mat-form-field appearance="outline">
+                  <mat-label>Move to</mat-label>
+                  <mat-select
+                    [value]="selectedNextStatuses()[claim.id] ?? ''"
+                    (selectionChange)="selectNextStatus(claim.id, $event.value)"
+                  >
+                    @for (status of claim.nextStatuses; track status) {
+                      <mat-option [value]="status">{{ status }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="note-field">
+                  <mat-label>Optional history note</mat-label>
+                  <input
+                    matInput
+                    maxlength="500"
+                    [ngModel]="adminNotes()[claim.id] ?? ''"
+                    [ngModelOptions]="{ standalone: true }"
+                    (ngModelChange)="setAdminNote(claim.id, $event)"
+                  />
+                </mat-form-field>
+                <button
+                  mat-flat-button
+                  type="button"
+                  [disabled]="!selectedNextStatuses()[claim.id] || busyClaimId() !== null"
+                  (click)="updateClaimStatus(claim)"
+                >
+                  {{ busyClaimId() === claim.id ? 'Saving...' : 'Update status' }}
+                </button>
+              </div>
+            }
+
+            @if (isAdmin && claim.awaitingPayout) {
+              <button
+                mat-stroked-button
+                type="button"
+                class="resend-button"
+                [disabled]="busyClaimId() !== null"
+                (click)="resendPayout(claim)"
+              >
+                Resend payout request
+              </button>
+            }
+
+            @if (claim.history.length > 0) {
+              <details class="claim-history">
+                <summary>Status history</summary>
+                <ol>
+                  @for (entry of claim.history; track entry.changedAt + entry.toStatus) {
+                    <li>
+                      <strong>{{ entry.toStatus }}</strong>
+                      <span>{{ entry.changedAt | date: 'medium' }}</span>
+                      @if (entry.note) {
+                        <p>{{ entry.note }}</p>
+                      }
+                    </li>
+                  }
+                </ol>
+              </details>
+            }
+          </mat-card-content>
+        </mat-card>
+      } @empty {
+        <mat-card class="state-card">
+          <mat-card-content>
+            {{ isAdmin ? 'No claims match these filters.' : 'You have not filed any claims yet.' }}
+          </mat-card-content>
+        </mat-card>
+      }
+    </div>
+  }
+</section>

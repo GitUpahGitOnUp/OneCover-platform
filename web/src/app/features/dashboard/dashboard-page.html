@@ -71,10 +71,13 @@
     <mat-card-content>
       <div>
         <p class="eyebrow">Next step</p>
-        <h2>Review available plans</h2>
-        <p>Compare coverage options and enroll in an available tier.</p>
+        <h2>Manage your benefits</h2>
+        <p>Review coverage options or check the progress of a disability claim.</p>
       </div>
-      <a mat-stroked-button routerLink="/coverage">Browse plans</a>
+      <div class="next-step-actions">
+        <a mat-stroked-button routerLink="/coverage">Browse plans</a>
+        <a mat-flat-button color="primary" routerLink="/claims">View claims</a>
+      </div>
     </mat-card-content>
   </mat-card>
 }

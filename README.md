@@ -204,8 +204,15 @@ npm ci
 npm start
 ```
 
-Open `http://localhost:4200` or `http://127.0.0.1:4200`, create a member account, then browse
-plans and enroll. Keep both terminals running while using the app.
+Open `http://localhost:4200` or `http://127.0.0.1:4200`, create a member account, browse plans,
+and enroll in coverage. Once enrolled in STD or LTD, use Claims to file and track a disability
+claim. Admin accounts can review the claims queue, move claims through their allowed workflow,
+and resend an unconfirmed payout request. Keep both terminals running while using the app.
+
+Public registration always creates a Member account. To try the admin claims screen locally, set
+`DEMO_ADMIN_SEED_ON_STARTUP=true`, `DEMO_ADMIN_EMAIL`, and a private `DEMO_ADMIN_PASSWORD` in
+`.env`, then restart the Identity container with `docker compose up -d identity`. Sign in with
+that configured admin account. Do not use production credentials for the demo admin.
 
 Stop the frontend with Ctrl+C. Stop the backend containers with `docker compose down` from the
 repository root. The named SQL volume persists local data.
@@ -220,7 +227,8 @@ dotnet test .\OneCover.slnx
 
 In Development, the API services apply their EF Core migrations at startup and expose OpenAPI.
 Compose runs services in Production mode and does not publish their ports. The API request
-examples are in the services' `.http` files.
+examples are in the services' `.http` files. Claims endpoints and request shapes are documented
+in [`docs/HANDOFF_TO_DEV_A.md`](docs/HANDOFF_TO_DEV_A.md#64-claims-public-api-what-the-gateway-and-angular-will-call).
 
 ## Starting the Angular frontend
 

@@ -160,8 +160,9 @@ Within a phase, A and B work in parallel. Each box is one PR-sized chunk.
 ### Phase 3 – Integration
 - [x] A: Gateway (YARP) with the route table above
 - [ ] A: Compose runs all services + gateway + one SQL Server with 4 databases (configuration is present; runtime verification awaits an available Docker daemon)
-- [x] A: Angular starter calls the gateway only; runtime API URL, bearer auth, member profile, plan tiers, enrollments, and server-provided paycheck deductions
-- [ ] A+B: Angular claims and disbursements pages, including the admin workflows
+- [x] A: Angular calls the gateway only; runtime API URL, bearer auth, member profile, plan tiers, enrollments, and server-provided paycheck deductions
+- [x] A+B: Angular member claim filing/history and admin claim queue, workflow, summary, and payout retry
+- [ ] A+B: Angular disbursement pages and admin dashboard composed from all four summary endpoints
 - [ ] B: Angular: dashboard composed from the four summary endpoints
 - [ ] Both: end-to-end walk: register → enroll → file claim → approve → disbursement → paid
 

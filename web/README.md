@@ -32,7 +32,12 @@ UI role checks are for presentation only; authorization is enforced by each API 
 - Member profile and FMLA eligibility from Identity
 - Active plan catalog and member enrollment
 - Per-paycheck deduction shown from the Enrollment response
+- Member claim filing and status/history tracking
+- Admin claim queue, workflow transitions, summary counts, and payout retry
 
-Claims, disbursements, and admin pages are not implemented yet.
+Disbursement management pages and the combined admin dashboard are not implemented yet.
+Public registration creates Member accounts. To use the admin Claims page locally, configure and
+enable the demo admin in `.env` as described in the repository README, then sign in with that
+admin account.
 
 Run `npm run build` for a production build and `npm test -- --watch=false` for the unit tests.

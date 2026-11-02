@@ -13,7 +13,7 @@ This document summarizes the local integration work completed on `DeveloperABran
 - Added Dockerfiles for Identity, Enrollment, and Gateway, plus Docker Compose configuration for SQL Server and the services. Added `.env.example`; `.env` is ignored and should contain local secrets only.
 - Added internal API contract tests, Claims HTTP client tests, and the Identity and Enrollment test projects to the solution.
 - Updated the README and tracked handoff/project-plan documentation to describe the integration and its current status.
-- Added the Angular 21 frontend starter in `web/`: runtime gateway configuration, bearer-token auth, member registration/sign-in, profile dashboard, plan catalog, and enrollment with server-provided paycheck deductions. Added a configurable gateway CORS allowlist for browser access.
+- Added the Angular 21 frontend in `web/`: runtime gateway configuration, bearer-token auth, member registration/sign-in, profile dashboard, plan catalog and enrollment with server-provided paycheck deductions, member claim filing/history, and admin claim review/status/payout retry. Added a configurable gateway CORS allowlist for browser access.
 - Committed the integration as `62fb32c` (`Complete microservice integration`). At the time this document was written, the local comparison with `origin/DeveloperABranch` reported no ahead or behind commits.
 
 ## Verification completed
@@ -43,7 +43,7 @@ The local branch integration and commit do not approve or merge the feature PRs 
 
 ### 3. Decide the remaining product scope
 
-- The Angular starter now covers member authentication, profile, plans, and enrollment. Claims/disbursements pages, the admin dashboard, and full-stack end-to-end verification remain.
+- The Angular app now covers member authentication, profile, plans/enrollment, and member/admin Claims workflows. Disbursement management pages, the combined admin dashboard, and full-stack end-to-end verification remain.
 - The optional `DisbursementPaid` / `DisbursementFailed` callback or event flow back to Claims remains an open design decision. See the handoff document before implementing it.
 
 ### 4. Address dependency advisories
