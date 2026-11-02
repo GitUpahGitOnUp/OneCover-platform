@@ -1,8 +1,11 @@
 using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi;
 using Microsoft.IdentityModel.Tokens;
+using Scalar.AspNetCore;
 using OneCover.Disbursements.Api.Data;
 using OneCover.Disbursements.Api.Errors;
 using OneCover.Disbursements.Api.Repositories;
@@ -29,6 +32,14 @@ static string RequiredSetting(IConfiguration configuration, string name)
     return value;
 }
 
+static string RequiredSecretSetting(IConfiguration configuration, string name)
+{
+    var value = RequiredSetting(configuration, name);
+    return value.StartsWith("REPLACE_", StringComparison.OrdinalIgnoreCase)
+        ? throw new InvalidOperationException($"Setting '{name}' must not use a placeholder value.")
+        : value;
+}
+
 // ---- Database ----------------------------------------------------------------------------
 var connectionString = RequiredSetting(builder.Configuration, "ConnectionStrings:DisbursementsDb");
 
@@ -48,7 +59,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 // ---- Authentication (JWT) ----------------------------------------------------------------
 // Every service checks the JWT itself (CLAUDE.md), even though the gateway checks it too.
 // All three settings must match what Identity uses to issue tokens, and a missing or blank one stops startup.
-var jwtKey = RequiredSetting(builder.Configuration, "Jwt:Key");
+var jwtKey = RequiredSecretSetting(builder.Configuration, "Jwt:Key");
 var jwtIssuer = RequiredSetting(builder.Configuration, "Jwt:Issuer");
 var jwtAudience = RequiredSetting(builder.Configuration, "Jwt:Audience");
 
@@ -95,7 +106,45 @@ builder.Services.AddControllers()
     // 1 or 99 for a status, and 99 would bind to a value that is not in the enum at all.
     .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(allowIntegerValues: false)));
 
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer((document, _, _) =>
+    {
+        document.Components ??= new OpenApiComponents();
+        document.Components.SecuritySchemes ??=
+            new Dictionary<string, IOpenApiSecurityScheme>();
+        document.Components.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme
+        {
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            Description = "Paste a JWT with a sub claim and Member or Admin role."
+        };
+        return Task.CompletedTask;
+    });
+    options.AddOperationTransformer((operation, context, _) =>
+    {
+        var requiresBearer = context.Description.ActionDescriptor.EndpointMetadata
+            .OfType<IAuthorizeData>().Any();
+
+        if (requiresBearer)
+        {
+            operation.Security ??= [];
+            var requirement = new OpenApiSecurityRequirement();
+            requirement.Add(
+                new OpenApiSecuritySchemeReference("Bearer", context.Document),
+                []);
+            operation.Security.Add(requirement);
+        }
+
+        return Task.CompletedTask;
+    });
+});
+
+// Registers .NET's built-in health check system. With no checks added, it just reports "Healthy" whenever the
+// app is up and answering, which is what Docker and the gateway need to ask "is this service alive?".
+// It deliberately does NOT test the database: a database outage should not make Docker restart a working API.
+builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
@@ -111,6 +160,17 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.MapDevToken();       // the test-token endpoint exists ONLY in Development
+    app.MapScalarApiReference("/scalar", options =>
+        options.WithTitle("OneCover Disbursements API")
+            .AddHttpAuthentication("Bearer", scheme => scheme.Token = string.Empty));
+}
+
+if (app.Environment.IsDevelopment() ||
+    builder.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    var db = scope.ServiceProvider.GetRequiredService<DisbursementsDbContext>();
+    await db.Database.MigrateAsync();
 }
 
 app.UseHttpsRedirection();
@@ -119,6 +179,9 @@ app.UseAuthentication();     // 1) work out WHO the caller is (read the token)
 app.UseAuthorization();      // 2) check whether that caller is ALLOWED (roles)
 
 app.MapControllers();
+
+// GET /health answers 200 "Healthy" with no login, so Docker can probe it. It returns no data, so being public is safe.
+app.MapHealthChecks("/health");
 
 app.Run();
 

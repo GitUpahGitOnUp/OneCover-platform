@@ -2,6 +2,7 @@
   <Folder Name="/contracts/">
     <Project Path="contracts/OneCover.Contracts/OneCover.Contracts.csproj" />
   </Folder>
+  <Folder Name="/services/" />
   <Folder Name="/services/claims/">
     <Project Path="services/claims/OneCover.Claims.Api/OneCover.Claims.Api.csproj" />
     <Project Path="services/claims/OneCover.Claims.Tests/OneCover.Claims.Tests.csproj" />
@@ -12,8 +13,13 @@
   </Folder>
   <Folder Name="/services/enrollment/">
     <Project Path="services/enrollment/OneCover.Enrollment.Api/OneCover.Enrollment.Api.csproj" />
+    <Project Path="services/enrollment/OneCover.Enrollment.Tests/OneCover.Enrollment.Tests.csproj" />
   </Folder>
   <Folder Name="/services/identity/">
     <Project Path="services/identity/OneCover.Identity.Api/OneCover.Identity.Api.csproj" />
+    <Project Path="services/identity/OneCover.Identity.Tests/OneCover.Identity.Tests.csproj" />
+  </Folder>
+  <Folder Name="/gateway/">
+    <Project Path="gateway/OneCover.Gateway/OneCover.Gateway.csproj" />
   </Folder>
 </Solution>

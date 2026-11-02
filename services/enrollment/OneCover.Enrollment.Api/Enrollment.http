@@ -1,0 +1,82 @@
+@baseUrl = http://localhost:5002
+@memberToken = replace-with-member-token-from-identity
+@adminToken = replace-with-admin-token-from-identity
+@internalApiKey = set-the-local-InternalApiKey-user-secret
+@planId = 1
+@enrollmentId = 1
+
+### List active plans
+GET {{baseUrl}}/api/plans
+
+### Get one active plan
+GET {{baseUrl}}/api/plans/{{planId}}
+
+### Create a plan (Admin)
+POST {{baseUrl}}/api/plans
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Sample Dental",
+  "type": "Dental",
+  "description": "Dental plan for development.",
+  "benefitPercent": 0,
+  "weeklyMaximum": 0,
+  "eliminationDays": 0,
+  "rates": [
+    { "tier": "EmployeeOnly", "monthlyPremium": 30 },
+    { "tier": "EmployeeSpouse", "monthlyPremium": 51 },
+    { "tier": "EmployeeChildren", "monthlyPremium": 45 },
+    { "tier": "Family", "monthlyPremium": 66 }
+  ]
+}
+
+### Update a plan and replace its rates (Admin)
+PUT {{baseUrl}}/api/plans/{{planId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Updated Dental",
+  "type": "Dental",
+  "description": "Updated development plan.",
+  "benefitPercent": 0,
+  "weeklyMaximum": 0,
+  "eliminationDays": 0,
+  "rates": [
+    { "tier": "EmployeeOnly", "monthlyPremium": 31 },
+    { "tier": "EmployeeSpouse", "monthlyPremium": 52.7 },
+    { "tier": "EmployeeChildren", "monthlyPremium": 46.5 },
+    { "tier": "Family", "monthlyPremium": 68.2 }
+  ]
+}
+
+### Retire a plan (Admin)
+DELETE {{baseUrl}}/api/plans/{{planId}}
+Authorization: Bearer {{adminToken}}
+
+### List the authenticated member's enrollments
+GET {{baseUrl}}/api/enrollments
+Authorization: Bearer {{memberToken}}
+
+### Read one of the authenticated member's enrollments
+GET {{baseUrl}}/api/enrollments/{{enrollmentId}}
+Authorization: Bearer {{memberToken}}
+
+### Enroll in a plan (Member)
+POST {{baseUrl}}/api/enrollments
+Authorization: Bearer {{memberToken}}
+Content-Type: application/json
+
+{
+  "planId": 1,
+  "tier": "EmployeeOnly"
+}
+
+### Enrollment counts (Admin)
+GET {{baseUrl}}/api/admin/enrollments/summary
+Authorization: Bearer {{adminToken}}
+
+### Read internal enrollment and plan terms (service API key required)
+GET {{baseUrl}}/internal/enrollments/{{enrollmentId}}
+X-Internal-Api-Key: {{internalApiKey}}

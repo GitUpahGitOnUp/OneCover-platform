@@ -73,6 +73,7 @@ Gateway column = public path Angular calls. Auth: Anon / Any (logged in) / Membe
 | PUT | /api/plans/{id} | Admin | edit plan + rates |
 | DELETE | /api/plans/{id} | Admin | retire plan (soft) |
 | GET | /api/enrollments | Member | own enrollments, with estimated per-paycheck deduction |
+| GET | /api/enrollments/{id} | Member | one of the member's own enrollments (others return 404) |
 | POST | /api/enrollments | Member | enroll in plan + choose tier (eligibility checked) |
 | GET | /api/admin/enrollments/summary | Admin | counts for dashboard |
 | GET | /internal/enrollments/{id} | internal | owner, status, plan terms for Claims |
@@ -85,7 +86,8 @@ Gateway column = public path Angular calls. Auth: Anon / Any (logged in) / Membe
 | POST | /api/claims | Member | file a claim |
 | GET | /api/admin/claims | Admin | all claims (filterable) |
 | PUT | /api/admin/claims/{id}/status | Admin | move claim through workflow; Approved publishes `ClaimApproved` |
-| GET | /api/admin/claims/summary | Admin | counts for dashboard |
+| GET | /api/admin/claims/summary | Admin | counts for dashboard, including `awaitingPayoutCount` |
+| POST | /api/admin/claims/{id}/resend-payout | Admin | re-send `ClaimApproved` for an approved claim whose payout was never confirmed |
 
 ### Disbursements (B)
 | Method | Path | Auth | Purpose |
@@ -129,31 +131,31 @@ Within a phase, A and B work in parallel. Each box is one PR-sized chunk.
 ### Phase 0 – Setup and contracts (together)
 - [ ] A: GitHub repo, collaborator, branch protection on `main` (`.gitignore`, README, CLAUDE.md done)
 - [x] A: `.gitignore`, README, CLAUDE.md
-- [ ] A: `docker-compose.yml` (SQL Server only); [x] folder skeleton
-- [ ] B: GitHub Actions: build + test on PR, path filters per service
+- [x] A: `docker-compose.yml` runs SQL Server, all APIs, and the gateway; [x] folder skeleton
+- [x] B: GitHub Actions: build + test on PR (PR #10; deliberately no path filters, see `docs/HANDOFF_TO_DEV_A.md`)
 - [ ] Both: review this doc, agree on endpoint table + event shapes
-- [ ] Both: `contracts/` project with DTOs and events
-- [ ] Both: decide event transport
+- [x] Both: `contracts/` project with DTOs and events
+- [x] Both: decide event transport (HTTP callback with the shared internal API key)
 - [ ] Both: create Issues from this checklist, set up the Project board
 
 ### Phase 1 – Foundations (parallel)
-- [ ] A: Identity service: User, Role, register/login, JWT, /api/me (includes FMLA eligibility via `IEligibilityService`), /internal/members
-- [ ] B: Disbursements service: Disbursement entity, repository, service, member + admin endpoints
-- [ ] B: Disbursements consumes `ClaimApproved` (test with a hand-published event)
-- [ ] B: dev-only test JWTs so B can call Admin/Member endpoints before Identity is ready
+- [x] A: Identity service: User, Role, register/login, JWT, /api/me (includes FMLA eligibility via `IEligibilityService`), /internal/members
+- [x] B: Disbursements service: Disbursement entity, repository, service, member + admin endpoints
+- [x] B: Disbursements consumes `ClaimApproved` (test with a hand-published event)
+- [x] B: dev-only test JWTs so B can call Admin/Member endpoints before Identity is ready
 
 ### Phase 2 – Core domain (parallel)
-- [ ] A: Enrollment service: Plan, PlanRate, CoverageTier, seed data
-- [ ] A: Enrollment rules: plan is active, no duplicate active enrollment, tier has a PlanRate, STD/LTD only EmployeeOnly. (The monolith has no employment-type rule for enrolling; any such restriction is a new decision.)
-- [ ] A: Enrollments: enroll with tier, rate snapshot, estimated per-paycheck deduction
-- [ ] A: /internal/enrollments/{id}
-- [ ] B: Claims service: BenefitClaim, ClaimWorkflow, BenefitCalculator
-- [ ] B: Claims uses an `IEnrollmentClient` (stub first, then the real HTTP client once A's endpoint exists)
-- [ ] B: file claim, admin status change, publish `ClaimApproved`
+- [x] A: Enrollment service: Plan, PlanRate, CoverageTier, seed data
+- [x] A: Enrollment rules: plan is active, no duplicate active enrollment, tier has a PlanRate, STD/LTD only EmployeeOnly. (The monolith has no employment-type rule for enrolling; any such restriction is a new decision.)
+- [x] A: Enrollments: enroll with tier, rate snapshot, estimated per-paycheck deduction
+- [x] A: /internal/enrollments/{id}
+- [x] B: Claims service: BenefitClaim, ClaimWorkflow, BenefitCalculator
+- [x] B: Claims uses an `IEnrollmentClient` backed by the internal HTTP endpoint
+- [x] B: file claim, admin status change, publish `ClaimApproved` (also the payout alert and manual re-send; no outbox by design)
 
 ### Phase 3 – Integration
-- [ ] A: Gateway (YARP) with the route table above
-- [ ] A: Compose runs all services + gateway + one SQL Server with 4 databases
+- [x] A: Gateway (YARP) with the route table above
+- [ ] A: Compose runs all services + gateway + one SQL Server with 4 databases (configuration is present; runtime verification awaits an available Docker daemon)
 - [ ] A+B: Angular base URL → gateway; update payments → disbursements pages
 - [ ] A: Angular: tier picker on enrollment, deduction display
 - [ ] B: Angular: dashboard composed from the four summary endpoints
@@ -163,8 +165,8 @@ Within a phase, A and B work in parallel. Each box is one PR-sized chunk.
 - [ ] Unit tests: eligibility, rate lookup, claim workflow, calculator, idempotent consumer
 - [ ] Integration tests per service (WebApplicationFactory)
 - [ ] Consistent error responses (ProblemDetails) in every service
-- [ ] Health checks (/health) per service, used in compose
-- [ ] README: architecture diagram, how to run, who owns what
+- [x] Health checks (/health) per API service; Compose uses `service_started` because images do not contain curl or wget
+- [x] README: architecture diagram, how to run, who owns what
 - [ ] Postman collection against the gateway
 - [ ] Interview talking points for each design choice
 
@@ -187,9 +189,10 @@ Within a phase, A and B work in parallel. Each box is one PR-sized chunk.
 Never cut: JWT-only identity, service-owned databases, tier pricing, disbursement flow.
 
 ## 9. Open questions
-- Event transport: RabbitMQ or simpler?
+- Event transport: decided as HTTP POST to Disbursements' `/internal/events/claim-approved` with the shared key and bounded retries.
 - Is Docker required by the assignment, or just compose for demo?
-- Which plan types get tiers: Dental, Vision, Accident, CriticalIllness get tiers; STD/LTD are EmployeeOnly. **Still open: Life and Pet.** Decide before building PlanRate.
-- Pay frequency for the deduction display (biweekly default?)
+- Which plan types get tiers: Dental, Vision, Accident, CriticalIllness, Life, and Pet use all four tiers; STD/LTD are EmployeeOnly.
+- Pay frequency for the deduction display: biweekly (26 pay periods/year).
+- Internal `/internal/**` calls use the configured `X-Internal-Api-Key` header and are not routed by the gateway.
 - ~~Exact fields on Identity's `/internal/members/{id}`~~ Decided, see the Identity endpoint table.
 - ~~Where FMLA eligibility lives~~ Decided: Identity (`/api/me`). Enrollment does not need it.

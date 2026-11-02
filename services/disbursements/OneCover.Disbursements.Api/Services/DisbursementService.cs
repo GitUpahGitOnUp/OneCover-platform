@@ -91,6 +91,29 @@ public class DisbursementService : IDisbursementService
     }
 
     /// <inheritdoc />
+    public async Task<DisbursementSummaryDto> GetSummaryAsync()
+    {
+        var totals = await _repository.GetTotalsByStatusAsync();
+
+        // The database only returns statuses that have rows. A status with none counts as zero.
+        // LINQ chain:
+        //   totals.Where(t => t.Status == status) = keep only the row for this status (zero or one row)
+        //   .Select(t => t.Count)                 = take just its count
+        //   .SingleOrDefault()                    = return that one number, or 0 (the default for int) when there is no row
+        int CountOf(DisbursementStatus status) => totals.Where(t => t.Status == status).Select(t => t.Count).SingleOrDefault();
+        decimal AmountOf(DisbursementStatus status) => totals.Where(t => t.Status == status).Select(t => t.Amount).SingleOrDefault();
+
+        return new DisbursementSummaryDto(
+            TotalCount: totals.Sum(t => t.Count),   // .Sum(...) = add up the counts of every status
+            PendingCount: CountOf(DisbursementStatus.Pending),
+            PaidCount: CountOf(DisbursementStatus.Paid),
+            FailedCount: CountOf(DisbursementStatus.Failed),
+            PendingAmount: AmountOf(DisbursementStatus.Pending),
+            PaidAmount: AmountOf(DisbursementStatus.Paid),
+            FailedAmount: AmountOf(DisbursementStatus.Failed));
+    }
+
+    /// <inheritdoc />
     public async Task<DisbursementDto> UpdateStatusAsync(int id, UpdateDisbursementStatusRequest request)
     {
         // Load the entity WITH tracking, so EF Core notices the changes we make to it below.

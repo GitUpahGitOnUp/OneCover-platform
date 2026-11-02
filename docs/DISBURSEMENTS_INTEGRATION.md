@@ -35,7 +35,8 @@ Confirmed: Identity's `User.Id` is an `int`, and Identity puts it in the `sub` c
 | GET | `/api/admin/disbursements/{id}` | Admin |
 | PUT | `/api/admin/disbursements/{id}/status` | Admin. Body `{ "status": "Paid" }` or `{ "status": "Failed", "reason": "..." }` |
 
-Planned: `GET /api/admin/disbursements/summary`.
+| GET | `/api/admin/disbursements/summary` | Admin. Counts and money totals per status (built, PR #13) |
+| GET | `/health` | Anonymous. 200 `Healthy`, liveness only, no database check (built, PR #14) |
 
 **Gateway:** route `/api/disbursements/**` and `/api/admin/disbursements/**` to Disbursements, default (JWT) policy.
 Do not route `/internal/**`.
@@ -53,7 +54,7 @@ Every error is RFC 9457 ProblemDetails (`application/problem+json`).
 | Not found, or someone else's record | 404 |
 | Business rule broken (wrong state, missing reason) or concurrent edit | 409 |
 
-## 5. `ClaimApproved` (agreed, NOT built yet)
+## 5. `ClaimApproved` (built on both sides: Disbursements receives it, Claims sends it)
 
 Event in `contracts/`:
 
@@ -76,9 +77,10 @@ public record ClaimApproved(int ClaimId, int MemberId, decimal Amount, DateOnly 
 | `ConnectionStrings__DisbursementsDb` | database connection string; database name `DisbursementsDb` |
 | `Jwt__Issuer`, `Jwt__Audience`, `Jwt__Key` | token validation (section 1) |
 | `InternalApiKey` | service-to-service key, sent as the header `X-Internal-Api-Key` (section 5) |
-| Port | 5004 inside compose (the plan's port) |
+| Port | The container listens on **8080**. Map host port 5004 (the plan's port) to 8080 |
 
-Planned: `/health` endpoint and a Dockerfile.
+The Dockerfile is `services/disbursements/OneCover.Disbursements.Api/Dockerfile` (PR #20). Build from the repo root:
+`docker build -f services/disbursements/OneCover.Disbursements.Api/Dockerfile -t onecover-disbursements .`
 The database schema is applied with EF migrations. The service owner (B) runs them.
 
 ## 7. Open questions

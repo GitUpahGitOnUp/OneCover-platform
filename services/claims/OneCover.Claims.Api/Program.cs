@@ -5,6 +5,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using OneCover.Claims.Api.Data;
 using OneCover.Claims.Api.Errors;
+using OneCover.Claims.Api.Clients;
+using OneCover.Claims.Api.Repositories;
+using OneCover.Claims.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,6 +29,14 @@ static string RequiredSetting(IConfiguration configuration, string name)
     return value;
 }
 
+static string RequiredSecretSetting(IConfiguration configuration, string name)
+{
+    var value = RequiredSetting(configuration, name);
+    return value.StartsWith("REPLACE_", StringComparison.OrdinalIgnoreCase)
+        ? throw new InvalidOperationException($"Setting '{name}' must not use a placeholder value.")
+        : value;
+}
+
 // ---- Database ----------------------------------------------------------------------------
 var connectionString = RequiredSetting(builder.Configuration, "ConnectionStrings:ClaimsDb");
 
@@ -34,6 +45,56 @@ builder.Services.AddDbContext<ClaimsDbContext>(options =>
     options.UseSqlServer(connectionString));
 
 // ---- Our own services --------------------------------------------------------------------
+// "Scoped" = one instance per HTTP request, which matches the DbContext's lifetime.
+builder.Services.AddScoped<IClaimRepository, ClaimRepository>();
+builder.Services.AddScoped<IClaimService, ClaimService>();
+
+// The benefit calculator keeps no state, so one shared ("singleton") instance is enough.
+builder.Services.AddSingleton<IBenefitCalculator, BenefitCalculator>();
+
+// Claims gets member and enrollment data only through their internal HTTP APIs.
+var enrollmentBaseUrl = RequiredServiceUri(builder.Configuration, "Enrollment:BaseUrl");
+var identityBaseUrl = RequiredServiceUri(builder.Configuration, "Identity:BaseUrl");
+
+builder.Services.AddScoped<IAdminClaimService, AdminClaimService>();
+
+// ---- Sending events to Disbursements -----------------------------------------------------
+// Both settings are required, so a missing one stops startup with a clear message instead of failing on the first approval.
+var disbursementsBaseUrl = RequiredSetting(builder.Configuration, "Disbursements:BaseUrl");
+var internalApiKey = RequiredSecretSetting(builder.Configuration, "InternalApiKey");
+
+// Uri.TryCreate checks the text is a full web address, so a typo is caught at startup.
+if (!Uri.TryCreate(disbursementsBaseUrl, UriKind.Absolute, out var disbursementsUri))
+{
+    throw new InvalidOperationException("Setting 'Disbursements:BaseUrl' must be a full address such as http://localhost:5175.");
+}
+
+// Bind the "Disbursements" section (BaseUrl, MaxAttempts, RetryDelay) to DisbursementsOptions.
+builder.Services.Configure<DisbursementsOptions>(builder.Configuration.GetSection(DisbursementsOptions.SectionName));
+
+builder.Services.AddHttpClient<IEnrollmentClient, HttpEnrollmentClient>(client =>
+{
+    client.BaseAddress = enrollmentBaseUrl;
+    client.DefaultRequestHeaders.Add("X-Internal-Api-Key", internalApiKey);
+    client.Timeout = TimeSpan.FromSeconds(5);
+});
+builder.Services.AddHttpClient<IIdentityClient, HttpIdentityClient>(client =>
+{
+    client.BaseAddress = identityBaseUrl;
+    client.DefaultRequestHeaders.Add("X-Internal-Api-Key", internalApiKey);
+    client.Timeout = TimeSpan.FromSeconds(5);
+});
+
+// A "typed HttpClient": DI builds an HttpClient already set up for Disbursements and hands it to HttpClaimEventPublisher.
+// The base address and the shared key header are set once here, so no caller can forget them. Reusing clients this way
+// (instead of "new HttpClient()" each time) avoids exhausting network sockets.
+builder.Services.AddHttpClient<IClaimEventPublisher, HttpClaimEventPublisher>(client =>
+{
+    client.BaseAddress = disbursementsUri;
+    client.DefaultRequestHeaders.Add("X-Internal-Api-Key", internalApiKey);
+    client.Timeout = TimeSpan.FromSeconds(5);   // a hung Disbursements must not hang an admin's approval
+});
+
 // TimeProvider.System is the real clock. A "singleton" = one shared instance for the whole app.
 // Anything that needs "today" or "now" asks this instead of DateTime.Now, so tests can supply a fake clock.
 builder.Services.AddSingleton(TimeProvider.System);
@@ -41,7 +102,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 // ---- Authentication (JWT) ----------------------------------------------------------------
 // Every service checks the JWT itself (CLAUDE.md), even though the gateway checks it too.
 // All three settings must match what Identity uses to issue tokens, and a missing or blank one stops startup.
-var jwtKey = RequiredSetting(builder.Configuration, "Jwt:Key");
+var jwtKey = RequiredSecretSetting(builder.Configuration, "Jwt:Key");
 var jwtIssuer = RequiredSetting(builder.Configuration, "Jwt:Issuer");
 var jwtAudience = RequiredSetting(builder.Configuration, "Jwt:Audience");
 
@@ -92,6 +153,11 @@ builder.Services.AddControllers()
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
+// Registers .NET's built-in health check system. With no checks added, it just reports "Healthy" whenever the
+// app is up and answering, which is what Docker and the gateway need to ask "is this service alive?".
+// It deliberately does NOT test the database: a database outage should not make Docker restart a working API.
+builder.Services.AddHealthChecks();
+
 var app = builder.Build();
 
 // ---- Request pipeline (ORDER MATTERS: each request passes through these top to bottom) ----
@@ -101,6 +167,14 @@ app.UseExceptionHandler();   // first, so it can catch errors thrown by everythi
 // (401), a wrong role (403) and an unknown URL (404) leave with an EMPTY body. This fills those in with the same
 // ProblemDetails shape, using the AddProblemDetails registration above, so every error looks the same.
 app.UseStatusCodePages();
+
+if (app.Environment.IsDevelopment() ||
+    builder.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    var db = scope.ServiceProvider.GetRequiredService<ClaimsDbContext>();
+    await db.Database.MigrateAsync();
+}
 
 if (app.Environment.IsDevelopment())
 {
@@ -114,7 +188,22 @@ app.UseAuthorization();      // 2) check whether that caller is ALLOWED (roles)
 
 app.MapControllers();
 
+// GET /health answers 200 "Healthy" with no login, so Docker can probe it. It returns no data, so being public is safe.
+app.MapHealthChecks("/health");
+
 app.Run();
+
+static Uri RequiredServiceUri(IConfiguration configuration, string name)
+{
+    var value = RequiredSetting(configuration, name);
+    if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) ||
+        uri.Scheme is not ("http" or "https"))
+    {
+        throw new InvalidOperationException($"Setting '{name}' must be an absolute HTTP or HTTPS URL.");
+    }
+
+    return new Uri(uri.AbsoluteUri.TrimEnd('/') + "/", UriKind.Absolute);
+}
 
 // Top-level statements hide the Program class the compiler generates. Declaring it here as public and partial
 // lets the integration tests start this whole app in memory with WebApplicationFactory<Program>.

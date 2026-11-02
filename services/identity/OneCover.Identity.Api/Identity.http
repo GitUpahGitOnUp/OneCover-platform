@@ -1,0 +1,47 @@
+@baseUrl = http://localhost:5001
+@memberToken = replace-with-token-from-login
+@internalApiKey = set-the-local-InternalApiKey-user-secret
+@memberId = 1
+
+### Register a member
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "member@example.test",
+  "password": "ChangeThisPassword123!",
+  "firstName": "Alex",
+  "lastName": "Member",
+  "hireDate": "2020-01-15",
+  "annualSalary": 78000,
+  "employmentType": "FullTime",
+  "ssnLast4": "1234"
+}
+
+### Log in
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "member@example.test",
+  "password": "ChangeThisPassword123!"
+}
+
+### Get the authenticated member's profile
+GET {{baseUrl}}/api/me
+Authorization: Bearer {{memberToken}}
+
+### Update the authenticated member's editable profile fields
+PUT {{baseUrl}}/api/me
+Authorization: Bearer {{memberToken}}
+Content-Type: application/json
+
+{
+  "firstName": "Alex",
+  "lastName": "Member",
+  "ssnLast4": "1234"
+}
+
+### Read internal member facts (service API key required)
+GET {{baseUrl}}/internal/members/{{memberId}}
+X-Internal-Api-Key: {{internalApiKey}}

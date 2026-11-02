@@ -7,7 +7,8 @@ and record benefit disbursements.
 This is the microservices version of the original OneCover monolith (a layered ASP.NET Core API + Angular app).
 Built as a portfolio project in a .NET full-stack training program.
 
-> **Status:** in progress. See [`docs/MICROSERVICES_PLAN.md`](docs/MICROSERVICES_PLAN.md) for the plan and checklist.
+> **Status:** API services and Docker Compose are implemented; the Angular UI and full-stack end-to-end verification remain.
+> See [`docs/MICROSERVICES_PLAN.md`](docs/MICROSERVICES_PLAN.md) for the plan and checklist.
 
 ## Architecture
 
@@ -23,19 +24,17 @@ Angular (web)
 Claims ──(ClaimApproved event)──▶ Disbursements
 ```
 
-| Service | Port |
+| Service | Host port |
 |---|---|
 | Gateway | 5000 |
-| Identity | 5001 |
-| Enrollment | 5002 |
-| Claims | 5003 |
-| Disbursements | 5004 |
 | Web | 4200 |
 
 - **Database per service.** No service reads another's tables.
+- **Private services.** Docker Compose does not publish SQL Server or service API ports to the host; APIs are reachable only on the Compose network.
 - **Shared code is only `contracts/`** (DTOs and event types). No service references another service.
 - **Service-to-service calls** go through interfaces (for example `IEnrollmentClient`) over `/internal/**` endpoints that the gateway never exposes.
 - **Auth:** Identity issues the JWT. Every service validates it and takes the user id from the token, never the URL or body.
+- **Gateway:** external clients call the YARP gateway on port 5000. Internal `/internal/**` calls stay private and are not routed through it.
 
 ## What's different from the monolith
 
@@ -105,7 +104,42 @@ stateDiagram-v2
 
 ## Running locally
 
-_To be filled in as the services and `docker-compose.yml` come online._
+The API services and gateway can be run together with Docker Compose. The .NET 10 SDK is only
+needed for local builds and tests.
+
+```powershell
+Copy-Item .env.example .env
+notepad .env
+docker compose up --build
+```
+
+Set private values for the SQL Server SA password, JWT signing key, and internal API key in
+`.env` before starting. The sample leaves secrets blank, so Compose refuses to start until you
+set them; API startup also rejects `REPLACE_` JWT, internal API, or demo-admin secrets. Do not
+commit `.env`; it is ignored by Git. Demo-admin seeding is disabled by default; to enable it
+locally, set `DEMO_ADMIN_SEED_ON_STARTUP=true` and provide `DEMO_ADMIN_EMAIL` and
+`DEMO_ADMIN_PASSWORD`.
+Compose starts SQL Server and all four APIs, applies each service's own migrations to its own
+database. Containers run in Production mode; the
+development-only Disbursements token endpoint and interactive API pages are not enabled.
+Only the Gateway is available from the host at `http://localhost:5000`. Service-to-service calls
+use the shared internal key on the private Compose network; `/internal/**` is not publicly routed.
+
+Stop the stack with `docker compose down`. The named SQL volume persists local data.
+
+Build and run all unit and integration tests from the repository root:
+
+```powershell
+dotnet test .\OneCover.slnx
+```
+
+In Development, the API services apply their EF Core migrations at startup and expose OpenAPI.
+Compose runs services in Production mode and does not publish their ports. The API request
+examples are in the services' `.http` files.
+
+The current estimate uses monthly plan rates annualized and divided by 26 pay periods.
+Non-disability plans are seeded with sample rates for all four coverage tiers; STD/LTD are
+EmployeeOnly. Replace the sample rates with approved business rates before using real data.
 
 ## Reference
 

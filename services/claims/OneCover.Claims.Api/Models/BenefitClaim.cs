@@ -80,6 +80,27 @@ public class BenefitClaim
     // byte[] = raw bytes. "= []" starts as an empty array; the database fills in the real value.
     public byte[] RowVersion { get; private set; } = [];
 
+    /// <summary>
+    /// When Disbursements confirmed it received the ClaimApproved event for this claim. Empty (null) until then.
+    /// An approved claim where this is still empty is "awaiting payout": the dashboard flags it so a human notices
+    /// instead of the member silently never being paid.
+    /// </summary>
+    // "private set": only <see cref="MarkPayoutRequested"/> can fill it in.
+    public DateTimeOffset? PayoutRequestedAt { get; private set; }
+
+    /// <summary>When the claim was approved, taken from its history. Null if it never was.</summary>
+    // A claim can be approved at most once (the workflow only leaves Approved for Closed), so the first match is the only one.
+    // "?.ChangedAt" = take the time if a row was found, otherwise stay null.
+    public DateTimeOffset? ApprovedAt => _history.FirstOrDefault(h => h.ToStatus == ClaimStatus.Approved)?.ChangedAt;
+
+    /// <summary>True if this claim has ever been approved. Closing an approved claim keeps it true.</summary>
+    // The history is the proof: Status alone can't tell us, because Approved moves on to Closed.
+    // "Any(...)" is a LINQ check: true if at least one history row matches the condition.
+    public bool WasApproved => _history.Any(h => h.ToStatus == ClaimStatus.Approved);
+
+    /// <summary>True if the claim was approved but Disbursements has not yet confirmed the payout was requested.</summary>
+    public bool AwaitingPayout => WasApproved && PayoutRequestedAt is null;
+
     // The real list of history rows. "private" so only this class can add to it.
     // "readonly" means the field can't be pointed at a different list, though items can still be added.
     // "[]" is an empty collection. EF Core finds this list by its naming convention (_ + the property name).
@@ -224,6 +245,26 @@ public class BenefitClaim
     }
 
     /// <summary>
+    /// Records that Disbursements accepted the ClaimApproved event, so the claim is no longer awaiting payout.
+    /// Throws <see cref="BusinessRuleException"/> if the claim was never approved or the payout was already recorded.
+    /// </summary>
+    /// <param name="requestedAt">The current time, from TimeProvider.</param>
+    public void MarkPayoutRequested(DateTimeOffset requestedAt)
+    {
+        if (!WasApproved)
+        {
+            throw new BusinessRuleException("Only an approved claim has a payout to request.");
+        }
+
+        if (PayoutRequestedAt is not null)
+        {
+            throw new BusinessRuleException("The payout for this claim was already requested.");
+        }
+
+        PayoutRequestedAt = requestedAt;
+    }
+
+    /// <summary>
     /// Moves the claim to a new status if the workflow allows it, and records the change in <see cref="History"/>.
     /// Throws <see cref="BusinessRuleException"/> for a move the workflow doesn't allow (for example Closed → InReview).
     /// </summary>
@@ -237,6 +278,21 @@ public class BenefitClaim
         if (!ClaimWorkflow.CanMove(Status, newStatus))
         {
             throw new BusinessRuleException($"Can't move a claim from {Status} to {newStatus}.");
+        }
+
+        // Approving starts a payout, and Disbursements refuses to pay zero. A leave no longer than the elimination
+        // period has a total benefit of 0, so approving it would promise a payout that can never be created.
+        if (newStatus == ClaimStatus.Approved && TotalBenefit <= 0)
+        {
+            throw new BusinessRuleException("A claim with no payable benefit can't be approved. Deny it instead.");
+        }
+
+        // Separation of duties: nobody approves their own claim, another admin must. Today a Member files and an Admin
+        // approves, so the roles already keep these apart, but a member can later be promoted to Admin and keep the same
+        // user id. This check is what stops that person approving the claim they filed.
+        if (newStatus == ClaimStatus.Approved && changedByUserId == MemberId)
+        {
+            throw new BusinessRuleException("You can't approve a claim you filed yourself. Another admin must approve it.");
         }
 
         // The actor must be a real user id from the JWT, so the audit trail never records "user 0".
