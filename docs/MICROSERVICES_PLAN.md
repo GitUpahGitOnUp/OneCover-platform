@@ -155,11 +155,11 @@ Within a phase, A and B work in parallel. Each box is one PR-sized chunk.
 
 ### Phase 3 – Integration
 - [x] A: Gateway (YARP) with the route table above
-- [ ] A: Compose runs all services + gateway + one SQL Server with 4 databases (configuration is present; runtime verification awaits an available Docker daemon)
+- [x] A: Compose runs all services + gateway + one SQL Server with 4 databases (verified 2026-11-02: only the gateway publishes a host port)
 - [ ] A+B: Angular base URL → gateway; update payments → disbursements pages
 - [ ] A: Angular: tier picker on enrollment, deduction display
 - [ ] B: Angular: dashboard composed from the four summary endpoints
-- [ ] Both: end-to-end walk: register → enroll → file claim → approve → disbursement → paid
+- [x] Both: end-to-end walk: register → enroll → file claim → approve → disbursement → paid (done 2026-11-02 through the gateway on port 5000)
 
 ### Phase 4 – Quality and polish
 - [ ] Unit tests: eligibility, rate lookup, claim workflow, calculator, idempotent consumer
