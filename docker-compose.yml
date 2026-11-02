@@ -5,8 +5,6 @@ services:
       ACCEPT_EULA: "Y"
       MSSQL_PID: Developer
       MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in .env}
-    ports:
-      - "${SQL_PORT:-1433}:1433"
     healthcheck:
       test:
         - CMD-SHELL
@@ -30,11 +28,9 @@ services:
       Jwt__Audience: onecover
       InternalApiKey: ${INTERNAL_API_KEY:?Set INTERNAL_API_KEY in .env}
       Database__MigrateOnStartup: "true"
-      DemoAdmin__SeedOnStartup: "true"
-      DemoAdmin__Email: ${DEMO_ADMIN_EMAIL:?Set DEMO_ADMIN_EMAIL in .env}
-      DemoAdmin__Password: ${DEMO_ADMIN_PASSWORD:?Set DEMO_ADMIN_PASSWORD in .env}
-    ports:
-      - "5001:8080"
+      DemoAdmin__SeedOnStartup: ${DEMO_ADMIN_SEED_ON_STARTUP:-false}
+      DemoAdmin__Email: ${DEMO_ADMIN_EMAIL:-}
+      DemoAdmin__Password: ${DEMO_ADMIN_PASSWORD:-}
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -51,8 +47,6 @@ services:
       Jwt__Audience: onecover
       InternalApiKey: ${INTERNAL_API_KEY:?Set INTERNAL_API_KEY in .env}
       Database__MigrateOnStartup: "true"
-    ports:
-      - "5002:8080"
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -69,8 +63,6 @@ services:
       Jwt__Audience: onecover
       InternalApiKey: ${INTERNAL_API_KEY:?Set INTERNAL_API_KEY in .env}
       Database__MigrateOnStartup: "true"
-    ports:
-      - "5004:8080"
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -90,8 +82,6 @@ services:
       Enrollment__BaseUrl: http://enrollment:8080/
       Disbursements__BaseUrl: http://disbursements:8080/
       Database__MigrateOnStartup: "true"
-    ports:
-      - "5003:8080"
     depends_on:
       sqlserver:
         condition: service_healthy

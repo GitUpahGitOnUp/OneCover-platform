@@ -66,13 +66,28 @@ public sealed class InternalMembersEndpointTests
         Assert.StartsWith("application/problem+json", response.Content.Headers.ContentType?.ToString());
     }
 
+    [Theory]
+    [InlineData("Jwt:Key")]
+    [InlineData("InternalApiKey")]
+    [InlineData("DemoAdmin:Password")]
+    public void Startup_RejectsPlaceholderSecrets(string settingName)
+    {
+        using var factory = new TestFactory(new FakeProfileService(), settingName);
+
+        var exception = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
+
+        Assert.Contains($"Setting '{settingName}'", exception.ToString());
+    }
+
     private static WebApplicationFactory<Program> CreateFactory()
     {
         var service = new FakeProfileService();
         return new TestFactory(service);
     }
 
-    private sealed class TestFactory(IProfileService profileService) : WebApplicationFactory<Program>
+    private sealed class TestFactory(
+        IProfileService profileService,
+        string? placeholderSetting = null) : WebApplicationFactory<Program>
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -84,6 +99,10 @@ public sealed class InternalMembersEndpointTests
             builder.UseSetting("Jwt:Issuer", "test-issuer");
             builder.UseSetting("Jwt:Audience", "test-audience");
             builder.UseSetting("InternalApiKey", ApiKey);
+            if (placeholderSetting is not null)
+            {
+                builder.UseSetting(placeholderSetting, "REPLACE_test-placeholder");
+            }
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<IProfileService>();

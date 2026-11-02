@@ -29,6 +29,14 @@ static string RequiredSetting(IConfiguration configuration, string name)
     return value;
 }
 
+static string RequiredSecretSetting(IConfiguration configuration, string name)
+{
+    var value = RequiredSetting(configuration, name);
+    return value.StartsWith("REPLACE_", StringComparison.OrdinalIgnoreCase)
+        ? throw new InvalidOperationException($"Setting '{name}' must not use a placeholder value.")
+        : value;
+}
+
 // ---- Database ----------------------------------------------------------------------------
 var connectionString = RequiredSetting(builder.Configuration, "ConnectionStrings:ClaimsDb");
 
@@ -53,7 +61,7 @@ builder.Services.AddScoped<IAdminClaimService, AdminClaimService>();
 // ---- Sending events to Disbursements -----------------------------------------------------
 // Both settings are required, so a missing one stops startup with a clear message instead of failing on the first approval.
 var disbursementsBaseUrl = RequiredSetting(builder.Configuration, "Disbursements:BaseUrl");
-var internalApiKey = RequiredSetting(builder.Configuration, "InternalApiKey");
+var internalApiKey = RequiredSecretSetting(builder.Configuration, "InternalApiKey");
 
 // Uri.TryCreate checks the text is a full web address, so a typo is caught at startup.
 if (!Uri.TryCreate(disbursementsBaseUrl, UriKind.Absolute, out var disbursementsUri))
@@ -94,7 +102,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 // ---- Authentication (JWT) ----------------------------------------------------------------
 // Every service checks the JWT itself (CLAUDE.md), even though the gateway checks it too.
 // All three settings must match what Identity uses to issue tokens, and a missing or blank one stops startup.
-var jwtKey = RequiredSetting(builder.Configuration, "Jwt:Key");
+var jwtKey = RequiredSecretSetting(builder.Configuration, "Jwt:Key");
 var jwtIssuer = RequiredSetting(builder.Configuration, "Jwt:Issuer");
 var jwtAudience = RequiredSetting(builder.Configuration, "Jwt:Audience");
 

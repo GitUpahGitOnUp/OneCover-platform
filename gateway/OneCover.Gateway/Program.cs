@@ -6,6 +6,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 var jwtKey = builder.Configuration["Jwt:Key"]
     ?? throw new InvalidOperationException("Jwt:Key is not configured.");
+if (jwtKey.StartsWith("REPLACE_", StringComparison.OrdinalIgnoreCase))
+{
+    throw new InvalidOperationException("Jwt:Key must not use a placeholder value.");
+}
 var jwtIssuer = builder.Configuration["Jwt:Issuer"]
     ?? throw new InvalidOperationException("Jwt:Issuer is not configured.");
 var jwtAudience = builder.Configuration["Jwt:Audience"]

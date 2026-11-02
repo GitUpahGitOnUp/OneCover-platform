@@ -21,11 +21,19 @@ static string RequiredSetting(IConfiguration configuration, string name)
         : value;
 }
 
+static string RequiredSecretSetting(IConfiguration configuration, string name)
+{
+    var value = RequiredSetting(configuration, name);
+    return value.StartsWith("REPLACE_", StringComparison.OrdinalIgnoreCase)
+        ? throw new InvalidOperationException($"Setting '{name}' must not use a placeholder value.")
+        : value;
+}
+
 var connectionString = RequiredSetting(builder.Configuration, "ConnectionStrings:EnrollmentDb");
-var jwtKey = RequiredSetting(builder.Configuration, "Jwt:Key");
+var jwtKey = RequiredSecretSetting(builder.Configuration, "Jwt:Key");
 var jwtIssuer = RequiredSetting(builder.Configuration, "Jwt:Issuer");
 var jwtAudience = RequiredSetting(builder.Configuration, "Jwt:Audience");
-_ = RequiredSetting(builder.Configuration, "InternalApiKey");
+_ = RequiredSecretSetting(builder.Configuration, "InternalApiKey");
 if (Encoding.UTF8.GetByteCount(jwtKey) < 32)
 {
     throw new InvalidOperationException("Jwt:Key must be at least 32 bytes long.");

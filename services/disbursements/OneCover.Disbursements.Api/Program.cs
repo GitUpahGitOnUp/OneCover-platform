@@ -32,6 +32,14 @@ static string RequiredSetting(IConfiguration configuration, string name)
     return value;
 }
 
+static string RequiredSecretSetting(IConfiguration configuration, string name)
+{
+    var value = RequiredSetting(configuration, name);
+    return value.StartsWith("REPLACE_", StringComparison.OrdinalIgnoreCase)
+        ? throw new InvalidOperationException($"Setting '{name}' must not use a placeholder value.")
+        : value;
+}
+
 // ---- Database ----------------------------------------------------------------------------
 var connectionString = RequiredSetting(builder.Configuration, "ConnectionStrings:DisbursementsDb");
 
@@ -51,7 +59,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 // ---- Authentication (JWT) ----------------------------------------------------------------
 // Every service checks the JWT itself (CLAUDE.md), even though the gateway checks it too.
 // All three settings must match what Identity uses to issue tokens, and a missing or blank one stops startup.
-var jwtKey = RequiredSetting(builder.Configuration, "Jwt:Key");
+var jwtKey = RequiredSecretSetting(builder.Configuration, "Jwt:Key");
 var jwtIssuer = RequiredSetting(builder.Configuration, "Jwt:Issuer");
 var jwtAudience = RequiredSetting(builder.Configuration, "Jwt:Audience");
 
