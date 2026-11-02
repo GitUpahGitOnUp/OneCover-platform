@@ -1,0 +1,102 @@
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Coverage</p>
+    <h1>Find the right plan for you.</h1>
+    <p>Review active plans and their available coverage tiers.</p>
+  </div>
+</section>
+
+@if (successMessage()) {
+  <p class="notice success" role="status">{{ successMessage() }}</p>
+}
+@if (errorMessage()) {
+  <p class="notice error" role="alert">{{ errorMessage() }}</p>
+}
+
+@if (isLoading()) {
+  <mat-card class="state-card"><mat-card-content>Loading plans...</mat-card-content></mat-card>
+} @else {
+  @if (enrollments().length > 0) {
+    <section class="enrollments-section">
+      <h2>Your active coverage</h2>
+      <div class="enrollment-list">
+        @for (enrollment of enrollments(); track enrollment.id) {
+          <mat-card class="enrollment-card">
+            <mat-card-content>
+              <div>
+                <strong>{{ enrollment.planName }}</strong>
+                <span
+                  >{{ enrollment.tier }} · enrolled
+                  {{ enrollment.enrolledOn | date: 'mediumDate' }}</span
+                >
+              </div>
+              <div class="deduction">
+                <strong>{{ enrollment.estimatedPerPaycheckDeduction | currency }}</strong>
+                <span>estimated per paycheck</span>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        }
+      </div>
+    </section>
+  }
+
+  <section class="plans-grid" aria-label="Available plans">
+    @for (plan of plans(); track plan.id) {
+      <mat-card class="plan-card">
+        <mat-card-header>
+          <div mat-card-avatar class="plan-avatar">{{ plan.type.slice(0, 1) }}</div>
+          <mat-card-title>{{ plan.name }}</mat-card-title>
+          <mat-card-subtitle>{{ plan.type }}</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <p class="description">{{ plan.description }}</p>
+          @if (plan.type === 'STD' || plan.type === 'LTD') {
+            <div class="plan-terms">
+              <span>{{ plan.benefitPercent | percent }} of eligible earnings</span>
+              <span>Up to {{ plan.weeklyMaximum | currency }} per week</span>
+              <span>{{ plan.eliminationDays }} elimination days</span>
+            </div>
+          }
+
+          <h3>Coverage tiers</h3>
+          <div class="rate-list">
+            @for (rate of plan.rates; track rate.tier) {
+              <div class="rate-row">
+                <div>
+                  <strong>{{ rate.tier }}</strong>
+                  <span>{{ rate.monthlyPremium | currency }} / month</span>
+                </div>
+                @if (isMember && !isEnrolledIn(plan.id)) {
+                  <button
+                    mat-stroked-button
+                    type="button"
+                    [disabled]="pendingEnrollment() !== null"
+                    (click)="enroll(plan, rate.tier)"
+                  >
+                    @if (pendingEnrollment() === enrollmentKey(plan.id, rate.tier)) {
+                      Enrolling...
+                    } @else {
+                      Enroll
+                    }
+                  </button>
+                }
+              </div>
+            }
+          </div>
+          @if (isEnrolledIn(plan.id)) {
+            <p class="already-enrolled">You already have active coverage for this plan.</p>
+          } @else if (!isMember && !isSignedIn) {
+            <a mat-button routerLink="/login" [queryParams]="{ returnUrl: '/coverage' }"
+              >Sign in to enroll</a
+            >
+          }
+        </mat-card-content>
+      </mat-card>
+    } @empty {
+      <mat-card class="state-card"
+        ><mat-card-content>No active plans are available right now.</mat-card-content></mat-card
+      >
+    }
+  </section>
+}

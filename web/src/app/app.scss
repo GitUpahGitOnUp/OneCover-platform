@@ -1,0 +1,122 @@
+:host {
+  display: block;
+  min-height: 100vh;
+}
+
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+}
+
+.topbar {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  display: flex;
+  height: 72px;
+  align-items: center;
+  gap: 2rem;
+  padding: 0 clamp(1rem, 5vw, 4.5rem);
+  border-bottom: 1px solid #e8ede9;
+  background: rgb(255 255 255 / 94%);
+  backdrop-filter: blur(14px);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: #173b36;
+  font-size: 1.15rem;
+  font-weight: 750;
+  letter-spacing: -0.035em;
+  text-decoration: none;
+}
+
+.brand-mark {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 11px;
+  background: #176b58;
+  color: white;
+  font-size: 1rem;
+}
+
+nav {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 1.4rem;
+
+  a {
+    color: #62726e;
+    font-size: 0.92rem;
+    font-weight: 550;
+    text-decoration: none;
+  }
+
+  a.active,
+  a:hover {
+    color: #176b58;
+  }
+}
+
+.account-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.role-label {
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  background: #e9f4f0;
+  color: #176b58;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.content {
+  width: min(1180px, 100%);
+  flex: 1;
+  margin: 0 auto;
+  padding: 2rem clamp(1rem, 4vw, 2.5rem) 4rem;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem clamp(1rem, 5vw, 4.5rem);
+  border-top: 1px solid #e8ede9;
+  color: #75827f;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 620px) {
+  .topbar {
+    height: auto;
+    min-height: 68px;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+  }
+
+  nav {
+    order: 3;
+    width: 100%;
+    padding: 0.25rem 0 0.4rem;
+  }
+
+  .account-actions {
+    margin-left: auto;
+  }
+
+  .footer {
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+}

@@ -104,26 +104,111 @@ stateDiagram-v2
 
 ## Running locally
 
-The API services and gateway can be run together with Docker Compose. The .NET 10 SDK is only
-needed for local builds and tests.
+### Prerequisites
+
+- Git
+- Docker Desktop, running with the Linux container engine
+- Node.js 24 LTS (includes npm) for the Angular frontend
+
+The .NET 10 SDK is only needed for local builds and tests; Docker builds the backend services.
+
+### Get the `DeveloperABranch` branch
+
+For a fresh checkout:
+
+```powershell
+git clone --branch DeveloperABranch https://github.com/GitUpahGitOnUp/OneCover-platform.git
+Set-Location .\OneCover-platform
+```
+
+To update an existing checkout:
+
+```powershell
+Set-Location .\OneCover-platform
+git fetch origin
+git switch DeveloperABranch
+git pull origin DeveloperABranch
+```
+
+### Configure local secrets
+
+Create your local `.env` from the example. It is ignored by Git; do not commit it or share its
+contents.
 
 ```powershell
 Copy-Item .env.example .env
 notepad .env
-docker compose up --build
 ```
 
-Set private values for the SQL Server SA password, JWT signing key, and internal API key in
-`.env` before starting. The sample leaves secrets blank, so Compose refuses to start until you
-set them; API startup also rejects `REPLACE_` JWT, internal API, or demo-admin secrets. Do not
-commit `.env`; it is ignored by Git. Demo-admin seeding is disabled by default; to enable it
-locally, set `DEMO_ADMIN_SEED_ON_STARTUP=true` and provide `DEMO_ADMIN_EMAIL` and
-`DEMO_ADMIN_PASSWORD`.
-Compose starts SQL Server and all four APIs, applies each service's own migrations to its own
-database. Containers run in Production mode; the
-development-only Disbursements token endpoint and interactive API pages are not enabled.
-Only the Gateway is available from the host at `http://localhost:5000`. Service-to-service calls
-use the shared internal key on the private Compose network; `/internal/**` is not publicly routed.
+Replace the blank `MSSQL_SA_PASSWORD`, `JWT_KEY`, and `INTERNAL_API_KEY` values with private,
+random values. `JWT_KEY` must be at least 32 bytes. `INTERNAL_API_KEY` must be the same value for
+Claims and Disbursements; Compose shares it automatically. Keep
+`DEMO_ADMIN_SEED_ON_STARTUP=false` unless you specifically want to seed an admin account.
+
+You can generate values locally in PowerShell without installing extra tools. Run this snippet,
+then copy each labeled value into the matching `.env` entry. It generates a distinct SQL password
+and signing/internal keys each time:
+
+```powershell
+function New-RandomBytes([int]$Count) {
+    $bytes = New-Object byte[] $Count
+    $generator = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try { $generator.GetBytes($bytes) } finally { $generator.Dispose() }
+    return ,$bytes
+}
+
+$sqlPassword = [Convert]::ToBase64String((New-RandomBytes 32)) + '!aA9'
+$jwtKey = [Convert]::ToBase64String((New-RandomBytes 32)).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+$internalApiKey = [Convert]::ToBase64String((New-RandomBytes 32)).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+Write-Output "MSSQL_SA_PASSWORD=$sqlPassword"
+Write-Output "JWT_KEY=$jwtKey"
+Write-Output "INTERNAL_API_KEY=$internalApiKey"
+```
+
+Save `.env` before starting Docker. For a brand-new local database, the generated SQL password is
+used to initialize SQL Server. If this checkout already has a persistent SQL volume, changing
+`MSSQL_SA_PASSWORD` alone will not change the existing SQL login; keep the password that created
+that volume or rotate the SQL login deliberately. Do not delete the volume to resolve a password
+mismatch if you need to keep its data.
+
+### Start the backend
+
+Make sure Docker Desktop is running, then run from the repository root:
+
+```powershell
+docker compose up --build -d
+docker compose ps
+```
+
+The first build may take several minutes. Wait until SQL Server is healthy and the API and gateway
+containers are running. To inspect startup output:
+
+```powershell
+docker compose logs -f gateway
+```
+
+Press Ctrl+C to stop following logs; this does not stop the containers. The gateway is available at
+`http://localhost:5000`. Compose starts SQL Server and all four APIs, applying each service's own
+migrations to its own database. Containers run in Production mode; the development-only
+Disbursements token endpoint and interactive API pages are not enabled. Only the Gateway is
+available from the host. Service-to-service calls use the shared internal key on the private
+Compose network; `/internal/**` is not publicly routed.
+
+### Start the frontend
+
+In a second PowerShell terminal, from the repository root:
+
+```powershell
+Set-Location .\web
+npm ci
+npm start
+```
+
+Open `http://localhost:4200` or `http://127.0.0.1:4200`, create a member account, then browse
+plans and enroll. Keep both terminals running while using the app.
+
+Stop the frontend with Ctrl+C. Stop the backend containers with `docker compose down` from the
+repository root. The named SQL volume persists local data.
 
 Stop the stack with `docker compose down`. The named SQL volume persists local data.
 
@@ -136,6 +221,26 @@ dotnet test .\OneCover.slnx
 In Development, the API services apply their EF Core migrations at startup and expose OpenAPI.
 Compose runs services in Production mode and does not publish their ports. The API request
 examples are in the services' `.http` files.
+
+## Starting the Angular frontend
+
+The Angular app lives in `web/` and sends browser API requests only to the YARP gateway. Its
+gateway URL is runtime-configurable in `web/public/config.json`; change `apiBaseUrl` for a
+different environment rather than adding individual service URLs to the frontend.
+
+Start the API stack first, then run:
+
+```powershell
+cd web
+npm ci
+npm start
+```
+
+Open `http://localhost:4200` or `http://127.0.0.1:4200`. The gateway allows both local origins by
+default. When hosting the frontend elsewhere, set the gateway's `Cors:AllowedOrigins` configuration
+to the exact frontend origin(s). The Angular app currently includes member registration/sign-in,
+a profile dashboard, and plan browsing/enrollment; claims, disbursement, and admin workflows remain
+future frontend work.
 
 The current estimate uses monthly plan rates annualized and divided by 26 pay periods.
 Non-disability plans are seeded with sample rates for all four coverage tiers; STD/LTD are

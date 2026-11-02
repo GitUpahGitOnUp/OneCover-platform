@@ -1,0 +1,80 @@
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Member overview</p>
+    <h1>
+      @if (profile(); as member) {
+        Welcome, {{ member.firstName }}.
+      } @else {
+        Your OneCover dashboard
+      }
+    </h1>
+    <p>Keep track of your benefits and coverage in one place.</p>
+  </div>
+  <a mat-flat-button color="primary" routerLink="/coverage">Explore coverage</a>
+</section>
+
+@if (isLoading()) {
+  <mat-card class="state-card"
+    ><mat-card-content>Loading your profile...</mat-card-content></mat-card
+  >
+} @else if (errorMessage()) {
+  <mat-card class="state-card error-card"
+    ><mat-card-content role="alert">{{ errorMessage() }}</mat-card-content></mat-card
+  >
+} @else if (profile(); as member) {
+  <section class="dashboard-grid">
+    <mat-card class="profile-card">
+      <mat-card-header>
+        <mat-card-title>Your profile</mat-card-title>
+        <mat-card-subtitle>Account details from Identity</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <dl>
+          <div>
+            <dt>Name</dt>
+            <dd>{{ member.firstName }} {{ member.lastName }}</dd>
+          </div>
+          <div>
+            <dt>Email</dt>
+            <dd>{{ member.email }}</dd>
+          </div>
+          <div>
+            <dt>Employment</dt>
+            <dd>{{ member.employmentType === 'FullTime' ? 'Full time' : 'Part time' }}</dd>
+          </div>
+          <div>
+            <dt>Hire date</dt>
+            <dd>{{ member.hireDate | date: 'longDate' }}</dd>
+          </div>
+        </dl>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="eligibility-card">
+      <mat-card-header>
+        <mat-card-title>FMLA eligibility</mat-card-title>
+        <mat-card-subtitle>Eligibility is calculated by Identity</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <p class="eligibility-status" [class.eligible]="member.isFmlaEligible">
+          {{ member.isFmlaEligible ? 'Currently eligible' : 'Not currently eligible' }}
+        </p>
+        <p class="supporting-copy">
+          Your eligibility status is provided by the benefits service and is not calculated in the
+          browser.
+        </p>
+      </mat-card-content>
+    </mat-card>
+  </section>
+
+  <mat-card class="next-step-card">
+    <mat-card-content>
+      <div>
+        <p class="eyebrow">Next step</p>
+        <h2>Review available plans</h2>
+        <p>Compare coverage options and enroll in an available tier.</p>
+      </div>
+      <a mat-stroked-button routerLink="/coverage">Browse plans</a>
+    </mat-card-content>
+  </mat-card>
+}

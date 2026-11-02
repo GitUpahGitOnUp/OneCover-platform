@@ -1,0 +1,135 @@
+.page-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1rem 0 2rem;
+
+  h1 {
+    margin: 0;
+    color: #173b36;
+    font-size: clamp(2rem, 4vw, 3rem);
+    letter-spacing: -0.04em;
+  }
+
+  > div > p:last-child {
+    margin-bottom: 0;
+    color: #62726e;
+  }
+}
+
+.eyebrow {
+  margin: 0 0 0.55rem;
+  color: #287c68;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+
+.profile-card,
+.eligibility-card,
+.next-step-card,
+.state-card {
+  border: 1px solid #e2e9e5;
+  border-radius: 16px;
+  box-shadow: 0 10px 32px rgb(27 55 48 / 5%);
+
+  mat-card-header {
+    margin-bottom: 0.75rem;
+  }
+
+  mat-card-title {
+    color: #193f38;
+    font-weight: 650;
+  }
+}
+
+dl {
+  margin: 0;
+
+  div {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.85rem 0;
+    border-bottom: 1px solid #edf0ed;
+  }
+
+  div:last-child {
+    border-bottom: 0;
+  }
+
+  dt {
+    color: #63736f;
+  }
+
+  dd {
+    margin: 0;
+    color: #243f39;
+    font-weight: 600;
+    text-align: right;
+  }
+}
+
+.eligibility-status {
+  display: inline-flex;
+  padding: 0.55rem 0.85rem;
+  border-radius: 999px;
+  background: #fff3da;
+  color: #81530a;
+  font-weight: 700;
+
+  &.eligible {
+    background: #e2f5e9;
+    color: #21613b;
+  }
+}
+
+.supporting-copy {
+  color: #62726e;
+  line-height: 1.6;
+}
+
+.next-step-card {
+  margin-top: 1.25rem;
+
+  mat-card-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  h2 {
+    margin: 0;
+    color: #193f38;
+    font-size: 1.35rem;
+  }
+
+  p:not(.eyebrow) {
+    margin-bottom: 0;
+    color: #62726e;
+  }
+}
+
+.error-card {
+  color: #9e3029;
+}
+
+@media (max-width: 720px) {
+  .page-heading {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}

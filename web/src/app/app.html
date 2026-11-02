@@ -1,0 +1,34 @@
+<div class="app-shell">
+  <header class="topbar">
+    <a class="brand" routerLink="/dashboard" aria-label="OneCover home">
+      <span class="brand-mark">O</span>
+      <span>onecover</span>
+    </a>
+
+    <nav aria-label="Main navigation">
+      @if (session()) {
+        <a routerLink="/dashboard" routerLinkActive="active">Overview</a>
+      }
+      <a routerLink="/coverage" routerLinkActive="active">Coverage</a>
+    </nav>
+
+    <div class="account-actions">
+      @if (session(); as authSession) {
+        <span class="role-label">{{ authSession.role }}</span>
+        <button mat-button type="button" (click)="logout()">Sign out</button>
+      } @else {
+        <a mat-button routerLink="/login">Sign in</a>
+        <a mat-flat-button color="primary" routerLink="/register">Get started</a>
+      }
+    </div>
+  </header>
+
+  <main class="content">
+    <router-outlet />
+  </main>
+
+  <footer class="footer">
+    <span>OneCover benefits</span>
+    <span>Coverage details and eligibility are provided by OneCover services.</span>
+  </footer>
+</div>
