@@ -50,10 +50,35 @@ public class AdminClaimServiceTests
         public Task SaveChangesAsync() => throw new DbUpdateConcurrencyException("someone else got there first");
     }
 
+    // Plays the Identity service. Knows member names by id (null = "Identity has no such member"), or throws to model an outage.
+    private class FakeIdentity(Dictionary<int, string>? names = null, bool down = false) : IIdentityClient
+    {
+        // How many lookups were made, so a test can check each member is asked about only once.
+        public int Lookups { get; private set; }
+
+        public Task<MemberInfo?> GetMemberAsync(int memberId, CancellationToken cancellationToken = default)
+        {
+            Lookups++;
+            if (down)
+            {
+                throw new HttpRequestException("Identity is down");
+            }
+
+            if (names is null || !names.TryGetValue(memberId, out var full))
+            {
+                return Task.FromResult<MemberInfo?>(null);
+            }
+
+            var parts = full.Split(' ');
+            return Task.FromResult<MemberInfo?>(new MemberInfo(memberId, 78_000m, parts[0], parts[1]));
+        }
+    }
+
     private static ClaimsDbContext OpenDb(string name) =>
         new(new DbContextOptionsBuilder<ClaimsDbContext>().UseInMemoryDatabase(name).Options);
 
-    private static AdminClaimService NewService(string db, FakePublisher publisher, bool conflict = false, DateTimeOffset? now = null)
+    private static AdminClaimService NewService(
+        string db, FakePublisher publisher, bool conflict = false, DateTimeOffset? now = null, IIdentityClient? identity = null)
     {
         IClaimRepository repository = new ClaimRepository(OpenDb(db));
         if (conflict)
@@ -61,7 +86,8 @@ public class AdminClaimServiceTests
             repository = new ConflictingRepository(repository);
         }
 
-        return new AdminClaimService(repository, publisher, new FixedClock(now ?? Now), NullLogger<AdminClaimService>.Instance);
+        return new AdminClaimService(
+            repository, publisher, identity ?? new FakeIdentity(), new FixedClock(now ?? Now), NullLogger<AdminClaimService>.Instance);
     }
 
     // Files a claim straight into the database. totalBenefit 0 models a leave that is all elimination days.
@@ -240,6 +266,63 @@ public class AdminClaimServiceTests
 
         Assert.Equal(2, everything.Count);
         Assert.Equal([first], reviewing.Select(c => c.Id));
+    }
+
+    // ---- Member names (looked up from Identity) ----
+
+    [Fact]
+    public async Task ListAll_AddsEachMembersName_AndAsksIdentityOncePerMember()
+    {
+        var db = Guid.NewGuid().ToString();
+        await FileClaim(db, memberId: 1);
+        await FileClaim(db, memberId: 1);   // same member twice
+        await FileClaim(db, memberId: 2);
+        var identity = new FakeIdentity(new Dictionary<int, string> { [1] = "Ada Lovelace", [2] = "Alan Turing" });
+
+        var claims = await NewService(db, new FakePublisher(), identity: identity)
+            .ListAllAsync(status: null, page: 1, pageSize: 50);
+
+        Assert.Equal(["Ada Lovelace", "Ada Lovelace", "Alan Turing"], claims.OrderBy(c => c.MemberId).Select(c => c.MemberName));
+        Assert.Equal(2, identity.Lookups);
+    }
+
+    [Fact]
+    public async Task Get_AddsTheMembersName()
+    {
+        var db = Guid.NewGuid().ToString();
+        var id = await FileClaim(db, memberId: 1);
+        var identity = new FakeIdentity(new Dictionary<int, string> { [1] = "Ada Lovelace" });
+
+        var claim = await NewService(db, new FakePublisher(), identity: identity).GetAsync(id);
+
+        Assert.Equal("Ada Lovelace", claim.MemberName);
+    }
+
+    [Fact]
+    public async Task WhenIdentityIsDown_TheClaimsStillLoad_WithoutAName()
+    {
+        var db = Guid.NewGuid().ToString();
+        var id = await FileClaim(db, memberId: 1);
+        var service = NewService(db, new FakePublisher(), identity: new FakeIdentity(down: true));
+
+        var list = await service.ListAllAsync(status: null, page: 1, pageSize: 50);
+        var single = await service.GetAsync(id);
+
+        Assert.Single(list);
+        Assert.Null(list[0].MemberName);
+        Assert.Null(single.MemberName);
+    }
+
+    [Fact]
+    public async Task AMemberIdentityDoesNotKnow_HasNoName_ButTheClaimStillLoads()
+    {
+        var db = Guid.NewGuid().ToString();
+        var id = await FileClaim(db, memberId: 99);
+
+        var claim = await NewService(db, new FakePublisher(), identity: new FakeIdentity()).GetAsync(id);
+
+        Assert.Equal(id, claim.Id);
+        Assert.Null(claim.MemberName);
     }
 
     // ---- The payout alert: approved claims Disbursements has not confirmed ----
