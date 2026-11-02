@@ -1,0 +1,104 @@
+<section class="admin-hero">
+  <div>
+    <p class="eyebrow">OneCover operations</p>
+    <h1>Admin dashboard</h1>
+    <p>Claims activity and payout follow-ups, in one clear view.</p>
+  </div>
+  <div class="hero-actions">
+    <button mat-stroked-button type="button" (click)="refresh()">Refresh data</button>
+    <a mat-flat-button color="primary" routerLink="/claims">Open claims queue</a>
+  </div>
+</section>
+
+@if (errorMessage()) {
+  <p class="notice error" role="alert">{{ errorMessage() }}</p>
+}
+
+@if (isLoading()) {
+  <mat-card class="state-card"
+    ><mat-card-content>Loading admin overview...</mat-card-content></mat-card
+  >
+} @else if (summary(); as claimSummary) {
+  <section class="metrics-grid" aria-label="Claims overview">
+    <mat-card class="metric-card metric-featured">
+      <mat-card-content>
+        <span class="metric-icon" aria-hidden="true">01</span>
+        <span class="metric-label">Total claims</span>
+        <strong>{{ claimSummary.totalClaims }}</strong>
+        <span class="metric-footnote">Across all workflow stages</span>
+      </mat-card-content>
+    </mat-card>
+    <mat-card class="metric-card">
+      <mat-card-content>
+        <span class="metric-icon metric-icon-blue" aria-hidden="true">02</span>
+        <span class="metric-label">Needs review</span>
+        <strong>{{ reviewQueueCount }}</strong>
+        <span class="metric-footnote">Submitted, reviewing, or info requested</span>
+      </mat-card-content>
+    </mat-card>
+    <mat-card class="metric-card">
+      <mat-card-content>
+        <span class="metric-icon metric-icon-gold" aria-hidden="true">03</span>
+        <span class="metric-label">Awaiting payout</span>
+        <strong>{{ claimSummary.awaitingPayoutCount }}</strong>
+        <span class="metric-footnote">Approved claims needing confirmation</span>
+      </mat-card-content>
+    </mat-card>
+  </section>
+
+  <section class="status-section">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Workflow health</p>
+        <h2>Claims by status</h2>
+      </div>
+      <a mat-button routerLink="/claims">Manage claims</a>
+    </div>
+    <div class="status-grid">
+      @for (entry of claimSummary.claimsByStatus; track entry.status) {
+        <div class="status-item">
+          <span>{{ entry.status }}</span>
+          <strong>{{ entry.count }}</strong>
+        </div>
+      }
+    </div>
+  </section>
+
+  <section class="recent-section">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Latest activity</p>
+        <h2>Recently submitted claims</h2>
+      </div>
+      <a mat-button routerLink="/claims">View all</a>
+    </div>
+
+    @if (recentClaims().length > 0) {
+      <div class="recent-list">
+        @for (claim of recentClaims(); track claim.id) {
+          <mat-card class="recent-card">
+            <mat-card-content>
+              <div class="claim-identity">
+                <span class="claim-number">CLAIM #{{ claim.id }}</span>
+                <strong>{{ claim.memberName || 'Member #' + claim.memberId }}</strong>
+              </div>
+              <div class="claim-dates">
+                <span
+                  >{{ claim.startDate | date: 'mediumDate' }} –
+                  {{ claim.endDate | date: 'mediumDate' }}</span
+                >
+                <small>Submitted {{ claim.submittedAt | date: 'mediumDate' }}</small>
+              </div>
+              <span class="status-chip">{{ claim.status }}</span>
+              <strong class="claim-benefit">{{ claim.totalBenefit | currency }}</strong>
+            </mat-card-content>
+          </mat-card>
+        }
+      </div>
+    } @else {
+      <mat-card class="state-card">
+        <mat-card-content>No claims have been submitted yet.</mat-card-content>
+      </mat-card>
+    }
+  </section>
+}

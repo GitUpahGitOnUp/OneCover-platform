@@ -28,6 +28,7 @@ deployable microservices behind an API gateway. Two developers, one monorepo.
 3. User id comes from the JWT only (never URL or body). Every service validates the JWT itself.
 4. Return DTOs, never entities. Named arguments in mapping methods.
 5. `/internal/**` endpoints are service-to-service only. The gateway does NOT route them.
+6. Angular calls only the gateway. Configure the gateway's `Cors:AllowedOrigins` with the frontend's exact browser origin.
 
 ### How services talk
 | From → To | Style | Purpose |
@@ -112,6 +113,9 @@ Gateway column = public path Angular calls. Auth: Anon / Any (logged in) / Membe
 A YARP route has one auth policy, so `/api/plans/**` needs two routes: one matching `GET` only (anonymous) and one for the rest.
 Role checks (Member vs Admin) stay in each service.
 
+The gateway CORS allowlist is configured separately from route matching. For local Angular development it includes
+`http://localhost:4200` and `http://127.0.0.1:4200`; deployments must set `Cors:AllowedOrigins` to their actual frontend origin(s).
+
 Renamed from the monolith: /api/payments → /api/disbursements, /api/admin/payments → /api/admin/disbursements.
 The old /api/admin/dashboard is replaced by the four summary endpoints.
 
@@ -156,9 +160,11 @@ Within a phase, A and B work in parallel. Each box is one PR-sized chunk.
 ### Phase 3 – Integration
 - [x] A: Gateway (YARP) with the route table above
 - [x] A: Compose runs all services + gateway + one SQL Server with 4 databases (verified 2026-11-02: only the gateway publishes a host port)
-- [ ] A+B: Angular base URL → gateway; update payments → disbursements pages
-- [ ] A: Angular: tier picker on enrollment, deduction display
-- [ ] B: Angular: dashboard composed from the four summary endpoints
+- [x] A: Angular calls the gateway only; runtime API URL, bearer auth, member profile, plan tiers, enrollments, and server-provided paycheck deductions
+- [x] A+B: Angular member claim filing/history and admin claim queue, workflow, summary, and payout retry
+- [x] A+B: Angular role-protected admin Claims dashboard using Claims summary and recent-claims endpoints; persisted light/dark glass theme
+- [ ] A+B: Angular disbursement pages and combined dashboard composed from all four summary endpoints
+- [ ] B: Angular: combined dashboard composed from the four summary endpoints
 - [x] Both: end-to-end walk: register → enroll → file claim → approve → disbursement → paid (done 2026-11-02 through the gateway on port 5000)
 
 ### Phase 4 – Quality and polish
