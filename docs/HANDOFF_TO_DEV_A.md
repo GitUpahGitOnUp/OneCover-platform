@@ -25,8 +25,8 @@ Disbursements Dockerfile #20, Claims no self-approval #21 (stacked on #16). The 
 and #18 is stacked on #16 and #20 on #19. Merge in the order of the checklist below. After each squash-merge GitHub normally retargets the
 next PR to `main`; if it does not, or if conflicts appear, tell B.
 
-The checklist branches have been merged locally into `DeveloperABranch` in the listed order.
-This does not constitute GitHub PR approval or merging into `main`; branch-protection setup remains a GitHub-side task.
+All checklist branches reached `main` through the squash merge of PR #6 (`26e16be`, 2026-11-02). PRs #10–#21 were closed as already included.
+Branch-protection setup remains a GitHub-side task.
 
 - [ ] 1. CI approved and merged
 - [ ] 1b. `build-and-test` set as a required check on `main`
