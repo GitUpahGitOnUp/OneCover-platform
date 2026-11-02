@@ -112,12 +112,12 @@ stateDiagram-v2
 
 The .NET 10 SDK is only needed for local builds and tests; Docker builds the backend services.
 
-### Get the `DeveloperABranch` branch
+### Get the `main` branch
 
 For a fresh checkout:
 
 ```powershell
-git clone --branch DeveloperABranch https://github.com/GitUpahGitOnUp/OneCover-platform.git
+git clone --branch main https://github.com/GitUpahGitOnUp/OneCover-platform.git
 Set-Location .\OneCover-platform
 ```
 
@@ -126,8 +126,8 @@ To update an existing checkout:
 ```powershell
 Set-Location .\OneCover-platform
 git fetch origin
-git switch DeveloperABranch
-git pull origin DeveloperABranch
+git switch main
+git pull origin main
 ```
 
 ### Configure local secrets

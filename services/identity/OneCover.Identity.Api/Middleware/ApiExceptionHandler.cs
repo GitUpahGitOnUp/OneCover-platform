@@ -35,7 +35,7 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
         {
             Status = statusCode,
             Title = title,
-            Detail = exception is ArgumentException ? exception.Message : title,
+            Detail = title,
             Instance = httpContext.Request.Path
         }, options: null, contentType: "application/problem+json", cancellationToken);
         return true;
