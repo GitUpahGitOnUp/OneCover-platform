@@ -19,15 +19,22 @@ public class AdminClaimService : IAdminClaimService
 
     private readonly IClaimRepository _repository;
     private readonly IClaimEventPublisher _events;
+    private readonly IIdentityClient _identity;
     private readonly TimeProvider _time;
     private readonly ILogger<AdminClaimService> _logger;
 
-    // Constructor injection: DI supplies all four objects when it creates the service.
+    // Constructor injection: DI supplies all five objects when it creates the service.
+    // IIdentityClient is how we ask the Identity service for member names.
     public AdminClaimService(
-        IClaimRepository repository, IClaimEventPublisher events, TimeProvider time, ILogger<AdminClaimService> logger)
+        IClaimRepository repository,
+        IClaimEventPublisher events,
+        IIdentityClient identity,
+        TimeProvider time,
+        ILogger<AdminClaimService> logger)
     {
         _repository = repository;
         _events = events;
+        _identity = identity;
         _time = time;
         _logger = logger;
     }
@@ -39,8 +46,13 @@ public class AdminClaimService : IAdminClaimService
 
         var claims = await _repository.ListAllAsync(status, skip, take, awaitingPayoutOnly);
 
-        // .Select(c => c.ToDto()) = for EACH entity, build its DTO.  .ToList() = run it and return a real List.
-        return claims.Select(c => c.ToDto()).ToList();
+        // Look each member up ONCE, even if they filed several claims on this page.
+        // .Select(c => c.MemberId) = from each claim keep just the member id.
+        var names = await GetMemberNamesAsync(claims.Select(c => c.MemberId));
+
+        // .Select(c => c.ToDto(...)) = for EACH entity, build its DTO and attach that member's name.
+        // names.GetValueOrDefault(id) = the name if we found one, otherwise null. .ToList() = run it, return a List.
+        return claims.Select(c => c.ToDto(memberName: names.GetValueOrDefault(c.MemberId))).ToList();
     }
 
     /// <inheritdoc />
@@ -49,7 +61,7 @@ public class AdminClaimService : IAdminClaimService
         var claim = await _repository.GetByIdAsync(id)
             ?? throw new NotFoundException("Claim", id);
 
-        return claim.ToDto();
+        return claim.ToDto(memberName: await TryGetMemberNameAsync(claim.MemberId));
     }
 
     /// <inheritdoc />
@@ -107,7 +119,7 @@ public class AdminClaimService : IAdminClaimService
             await SendClaimApprovedAsync(claim);
         }
 
-        return claim.ToDto();
+        return claim.ToDto(memberName: await TryGetMemberNameAsync(claim.MemberId));
     }
 
     /// <inheritdoc />
@@ -135,7 +147,7 @@ public class AdminClaimService : IAdminClaimService
             throw new ServiceUnavailableException("Disbursements could not be reached. The claim is unchanged; try again in a moment.");
         }
 
-        return claim.ToDto();
+        return claim.ToDto(memberName: await TryGetMemberNameAsync(claim.MemberId));
     }
 
     // Sends ClaimApproved and, once Disbursements has accepted it, records that on the claim (which clears the warning).
@@ -171,6 +183,45 @@ public class AdminClaimService : IAdminClaimService
         }
 
         return true;
+    }
+
+    // Looks up the names of several members at once. Returns id -> name; a member we couldn't name is simply missing.
+    private async Task<Dictionary<int, string>> GetMemberNamesAsync(IEnumerable<int> memberIds)
+    {
+        // .Distinct() = drop repeats, so a member with three claims is asked about once.
+        // .Select(async id => ...) = start one lookup per member WITHOUT waiting, so they run side by side.
+        // .ToList() = actually start them all now (LINQ is lazy and would otherwise start them one by one).
+        var lookups = memberIds
+            .Distinct()
+            .Select(async id => (Id: id, Name: await TryGetMemberNameAsync(id)))
+            .ToList();
+
+        // Task.WhenAll = wait until every lookup has finished, and give back all the results.
+        var results = await Task.WhenAll(lookups);
+
+        // .Where(r => r.Name is not null) = keep only the members we found a name for.
+        // .ToDictionary(key, value)       = build an id -> name map for quick lookup by the caller.
+        return results
+            .Where(r => r.Name is not null)
+            .ToDictionary(r => r.Id, r => r.Name!);
+    }
+
+    // Asks Identity for one member's name. A name is only decoration, so if Identity is down or slow we log it and
+    // return null rather than failing the admin's whole request.
+    private async Task<string?> TryGetMemberNameAsync(int memberId)
+    {
+        try
+        {
+            var member = await _identity.GetMemberAsync(memberId);
+            return member?.DisplayName;
+        }
+        // "when (...)" = only catch these failures: a network error, a timeout (the 5 second limit), or a bad reply.
+        // Any other bug still surfaces instead of being hidden.
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidDataException)
+        {
+            _logger.LogWarning(ex, "Could not look up the name of member {MemberId}; showing the claim without it.", memberId);
+            return null;
+        }
     }
 
     // Turns "page 3, 50 per page" into "skip 100 rows, take 50". Private = only this class uses it.

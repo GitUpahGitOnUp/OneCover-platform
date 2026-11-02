@@ -12,6 +12,10 @@ public class StubIdentityClient : IIdentityClient
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult<MemberInfo?>(new MemberInfo(Id: memberId, AnnualSalary: 78_000m));
+        return Task.FromResult<MemberInfo?>(new MemberInfo(
+            Id: memberId,
+            AnnualSalary: 78_000m,
+            FirstName: "Test",
+            LastName: $"Member {memberId}"));
     }
 }
