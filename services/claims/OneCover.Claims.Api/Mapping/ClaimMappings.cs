@@ -9,7 +9,9 @@ public static class ClaimMappings
 {
     /// <summary>Builds the DTO the API returns for a claim, including its history. The claim must have its History loaded.</summary>
     // "this BenefitClaim c" makes this an EXTENSION METHOD: you can write claim.ToDto() as if it belonged to BenefitClaim.
-    public static ClaimDto ToDto(this BenefitClaim c) => new(
+    /// <param name="c">The claim to convert.</param>
+    /// <param name="memberName">The member's name from Identity, or null when it isn't known or isn't wanted.</param>
+    public static ClaimDto ToDto(this BenefitClaim c, string? memberName = null) => new(
         // NAMED arguments are required by CLAUDE.md. This DTO has many fields of the same type (decimals, ints),
         // so a positional call could silently put a value in the wrong field if the DTO is ever reordered.
         Id: c.Id,
@@ -38,7 +40,8 @@ public static class ClaimMappings
             .OrderBy(h => h.ChangedAt)
             .ThenBy(h => h.Id)
             .Select(h => h.ToDto())
-            .ToList());
+            .ToList(),
+        MemberName: memberName);
 
     /// <summary>Builds the DTO the API returns for one history row.</summary>
     public static ClaimHistoryDto ToDto(this ClaimStatusHistory h) => new(

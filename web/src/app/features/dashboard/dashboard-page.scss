@@ -7,20 +7,20 @@
 
   h1 {
     margin: 0;
-    color: #173b36;
+    color: var(--text-strong);
     font-size: clamp(2rem, 4vw, 3rem);
     letter-spacing: -0.04em;
   }
 
   > div > p:last-child {
     margin-bottom: 0;
-    color: #62726e;
+    color: var(--text-muted);
   }
 }
 
 .eyebrow {
   margin: 0 0 0.55rem;
-  color: #287c68;
+  color: var(--accent);
   font-size: 0.76rem;
   font-weight: 700;
   letter-spacing: 0.15em;
@@ -37,16 +37,18 @@
 .eligibility-card,
 .next-step-card,
 .state-card {
-  border: 1px solid #e2e9e5;
+  border: 1px solid var(--surface-border);
   border-radius: 16px;
-  box-shadow: 0 10px 32px rgb(27 55 48 / 5%);
+  background: var(--surface-glass);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(20px);
 
   mat-card-header {
     margin-bottom: 0.75rem;
   }
 
   mat-card-title {
-    color: #193f38;
+    color: var(--text-strong);
     font-weight: 650;
   }
 }
@@ -59,7 +61,7 @@ dl {
     justify-content: space-between;
     gap: 1rem;
     padding: 0.85rem 0;
-    border-bottom: 1px solid #edf0ed;
+    border-bottom: 1px solid var(--line);
   }
 
   div:last-child {
@@ -67,12 +69,12 @@ dl {
   }
 
   dt {
-    color: #63736f;
+    color: var(--text-muted);
   }
 
   dd {
     margin: 0;
-    color: #243f39;
+    color: var(--text-strong);
     font-weight: 600;
     text-align: right;
   }
@@ -82,18 +84,18 @@ dl {
   display: inline-flex;
   padding: 0.55rem 0.85rem;
   border-radius: 999px;
-  background: #fff3da;
-  color: #81530a;
+  background: var(--warning-soft);
+  color: var(--warning-text);
   font-weight: 700;
 
   &.eligible {
-    background: #e2f5e9;
-    color: #21613b;
+    background: var(--success-soft);
+    color: var(--success-text);
   }
 }
 
 .supporting-copy {
-  color: #62726e;
+  color: var(--text-muted);
   line-height: 1.6;
 }
 
@@ -109,13 +111,13 @@ dl {
 
   h2 {
     margin: 0;
-    color: #193f38;
+    color: var(--text-strong);
     font-size: 1.35rem;
   }
 
   p:not(.eyebrow) {
     margin-bottom: 0;
-    color: #62726e;
+    color: var(--text-muted);
   }
 }
 
@@ -126,7 +128,7 @@ dl {
 }
 
 .error-card {
-  color: #9e3029;
+  color: var(--error-text);
 }
 
 @media (max-width: 720px) {

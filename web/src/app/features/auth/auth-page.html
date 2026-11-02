@@ -66,11 +66,18 @@
           @if (isRegister()) {
             <mat-form-field appearance="outline">
               <mat-label>Hire date</mat-label>
-              <input matInput type="date" formControlName="hireDate" />
+              <input matInput type="date" formControlName="hireDate" [max]="latestHireDate" />
               @if (form.controls.hireDate.hasError('required')) {
                 <mat-error>Hire date is required.</mat-error>
+              } @else if (form.controls.hireDate.hasError('futureDate')) {
+                <mat-error>Hire date cannot be in the future.</mat-error>
               }
             </mat-form-field>
+            @if (form.controls.hireDate.touched && form.controls.hireDate.hasError('futureDate')) {
+              <p class="date-error full-width" role="alert">
+                Invalid hire date. The date cannot be later than today.
+              </p>
+            }
 
             <mat-form-field appearance="outline">
               <mat-label>Annual salary</mat-label>

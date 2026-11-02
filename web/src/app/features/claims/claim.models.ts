@@ -12,6 +12,7 @@ export interface ClaimHistoryEntry {
 export interface Claim {
   id: number;
   memberId: number;
+  memberName?: string | null;
   enrollmentId: number;
   reason: string;
   startDate: string;

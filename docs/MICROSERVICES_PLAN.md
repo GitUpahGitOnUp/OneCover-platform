@@ -162,8 +162,9 @@ Within a phase, A and B work in parallel. Each box is one PR-sized chunk.
 - [ ] A: Compose runs all services + gateway + one SQL Server with 4 databases (configuration is present; runtime verification awaits an available Docker daemon)
 - [x] A: Angular calls the gateway only; runtime API URL, bearer auth, member profile, plan tiers, enrollments, and server-provided paycheck deductions
 - [x] A+B: Angular member claim filing/history and admin claim queue, workflow, summary, and payout retry
-- [ ] A+B: Angular disbursement pages and admin dashboard composed from all four summary endpoints
-- [ ] B: Angular: dashboard composed from the four summary endpoints
+- [x] A+B: Angular role-protected admin Claims dashboard using Claims summary and recent-claims endpoints; persisted light/dark glass theme
+- [ ] A+B: Angular disbursement pages and combined dashboard composed from all four summary endpoints
+- [ ] B: Angular: combined dashboard composed from the four summary endpoints
 - [ ] Both: end-to-end walk: register → enroll → file claim → approve → disbursement → paid
 
 ### Phase 4 – Quality and polish

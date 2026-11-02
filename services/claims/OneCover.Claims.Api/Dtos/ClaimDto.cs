@@ -26,6 +26,7 @@ namespace OneCover.Claims.Api.Dtos;
 /// <param name="AwaitingPayout">True if the claim was approved but Disbursements has not confirmed yet. The dashboard flags these.</param>
 /// <param name="NextStatuses">The statuses the workflow allows next. The admin "Move to..." choices.</param>
 /// <param name="History">The audit trail of status changes, oldest first.</param>
+/// <param name="MemberName">The member's name, filled in for admins only (Identity owns names). Null for members and when Identity can't be reached.</param>
 public record ClaimDto(
     int Id,
     int MemberId,
@@ -43,4 +44,5 @@ public record ClaimDto(
     DateTimeOffset? PayoutRequestedAt,
     bool AwaitingPayout,
     IReadOnlyList<ClaimStatus> NextStatuses,
-    IReadOnlyList<ClaimHistoryDto> History);
+    IReadOnlyList<ClaimHistoryDto> History,
+    string? MemberName = null);

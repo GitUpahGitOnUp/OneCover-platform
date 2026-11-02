@@ -7,7 +7,7 @@ and record benefit disbursements.
 This is the microservices version of the original OneCover monolith (a layered ASP.NET Core API + Angular app).
 Built as a portfolio project in a .NET full-stack training program.
 
-> **Status:** API services and Docker Compose are implemented; the Angular UI and full-stack end-to-end verification remain.
+> **Status:** API services, Docker Compose, and the Angular member/admin UI are implemented; full-stack end-to-end verification remains.
 > See [`docs/MICROSERVICES_PLAN.md`](docs/MICROSERVICES_PLAN.md) for the plan and checklist.
 
 ## Architecture
@@ -209,15 +209,31 @@ and enroll in coverage. Once enrolled in STD or LTD, use Claims to file and trac
 claim. Admin accounts can review the claims queue, move claims through their allowed workflow,
 and resend an unconfirmed payout request. Keep both terminals running while using the app.
 
-Public registration always creates a Member account. To try the admin claims screen locally, set
-`DEMO_ADMIN_SEED_ON_STARTUP=true`, `DEMO_ADMIN_EMAIL`, and a private `DEMO_ADMIN_PASSWORD` in
-`.env`, then restart the Identity container with `docker compose up -d identity`. Sign in with
-that configured admin account. Do not use production credentials for the demo admin.
+Public registration always creates a Member account. To create a local admin account, set these
+values in `.env` before restarting Identity:
+
+```dotenv
+DEMO_ADMIN_SEED_ON_STARTUP=true
+DEMO_ADMIN_EMAIL=admin@onecover.local
+DEMO_ADMIN_PASSWORD=<a-unique-private-password-you-choose>
+```
+
+There is deliberately no built-in admin password. The login email is
+`admin@onecover.local`; the password is the private value you set in `.env`. Restart Identity to
+seed the account:
+
+```powershell
+docker compose up -d identity
+docker compose logs identity
+```
+
+The seeder creates the account only if that email does not already exist. If it was seeded earlier,
+changing `.env` will not reset its password; use the existing password or configure a different
+admin email. Keep the password private and do not use production credentials for a local demo.
+After signing in, admins land on the Admin dashboard and can open the claims queue.
 
 Stop the frontend with Ctrl+C. Stop the backend containers with `docker compose down` from the
 repository root. The named SQL volume persists local data.
-
-Stop the stack with `docker compose down`. The named SQL volume persists local data.
 
 Build and run all unit and integration tests from the repository root:
 
@@ -230,25 +246,13 @@ Compose runs services in Production mode and does not publish their ports. The A
 examples are in the services' `.http` files. Claims endpoints and request shapes are documented
 in [`docs/HANDOFF_TO_DEV_A.md`](docs/HANDOFF_TO_DEV_A.md#64-claims-public-api-what-the-gateway-and-angular-will-call).
 
-## Starting the Angular frontend
-
 The Angular app lives in `web/` and sends browser API requests only to the YARP gateway. Its
 gateway URL is runtime-configurable in `web/public/config.json`; change `apiBaseUrl` for a
-different environment rather than adding individual service URLs to the frontend.
-
-Start the API stack first, then run:
-
-```powershell
-cd web
-npm ci
-npm start
-```
-
-Open `http://localhost:4200` or `http://127.0.0.1:4200`. The gateway allows both local origins by
-default. When hosting the frontend elsewhere, set the gateway's `Cors:AllowedOrigins` configuration
-to the exact frontend origin(s). The Angular app currently includes member registration/sign-in,
-a profile dashboard, and plan browsing/enrollment; claims, disbursement, and admin workflows remain
-future frontend work.
+different environment rather than adding individual service URLs to the frontend. The frontend
+includes member registration/sign-in, profile and coverage pages, claim filing/history, an
+admin-only claims overview and workflow, and a persisted light/dark glass theme toggle. When
+hosting the frontend elsewhere, set the gateway's `Cors:AllowedOrigins` configuration to the exact
+frontend origin(s).
 
 The current estimate uses monthly plan rates annualized and divided by 26 pay periods.
 Non-disability plans are seeded with sample rates for all four coverage tiers; STD/LTD are

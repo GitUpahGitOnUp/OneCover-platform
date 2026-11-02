@@ -36,6 +36,7 @@ export class AuthPage {
   readonly isSubmitting = signal(false);
   readonly errorMessage = signal('');
   readonly returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
+  readonly latestHireDate = new Date().toISOString().slice(0, 10);
   readonly form = new FormGroup({
     email: new FormControl('', {
       nonNullable: true,
@@ -93,7 +94,15 @@ export class AuthPage {
     this.form.controls.lastName.setValidators(
       registrationValidators ? [Validators.required, Validators.maxLength(100)] : [],
     );
-    this.form.controls.hireDate.setValidators(registrationValidators ? [Validators.required] : []);
+    this.form.controls.hireDate.setValidators(
+      registrationValidators
+        ? [
+            Validators.required,
+            (control) =>
+              control.value && control.value > this.latestHireDate ? { futureDate: true } : null,
+          ]
+        : [],
+    );
     this.form.controls.annualSalary.setValidators(
       registrationValidators
         ? [Validators.required, Validators.pattern(/^\d+(\.\d{1,2})?$/), Validators.max(10000000)]
@@ -124,6 +133,10 @@ export class AuthPage {
 
   private getReturnUrl(): string {
     const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
-    return returnUrl?.startsWith('/') && !returnUrl.startsWith('//') ? returnUrl : '/dashboard';
+    if (returnUrl?.startsWith('/') && !returnUrl.startsWith('//')) {
+      return returnUrl;
+    }
+
+    return this.auth.sessionSnapshot?.role === 'Admin' ? '/admin' : '/dashboard';
   }
 }

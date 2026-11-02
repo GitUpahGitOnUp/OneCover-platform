@@ -28,4 +28,20 @@ describe('App', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('.brand')?.textContent).toContain('onecover');
   });
+
+  it('switches between light and dark mode', async () => {
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const themeSwitch = fixture.nativeElement.querySelector('[role="switch"]') as HTMLButtonElement;
+    const initialTheme = themeSwitch.getAttribute('aria-checked');
+    themeSwitch.click();
+    fixture.detectChanges();
+
+    expect(themeSwitch.getAttribute('aria-checked')).not.toBe(initialTheme);
+    expect(document.documentElement.dataset['theme']).toBe(
+      themeSwitch.getAttribute('aria-checked') === 'true' ? 'dark' : 'light',
+    );
+  });
 });

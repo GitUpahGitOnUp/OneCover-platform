@@ -3,6 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from './core/auth/auth.service';
+import { ThemeService } from './core/theme/theme.service';
 
 @Component({
   selector: 'app-root',
@@ -13,8 +14,14 @@ import { AuthService } from './core/auth/auth.service';
 export class App {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly theme = inject(ThemeService);
 
   readonly session = toSignal(this.auth.session$, { initialValue: this.auth.sessionSnapshot });
+  readonly isDark = this.theme.isDark;
+
+  toggleTheme(): void {
+    this.theme.toggle();
+  }
 
   logout(): void {
     this.auth.logout();

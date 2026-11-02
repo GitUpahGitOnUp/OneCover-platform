@@ -188,7 +188,7 @@
           <mat-card-content>
             @if (isAdmin) {
               <div class="claim-facts">
-                <span>Member #{{ claim.memberId }}</span>
+                <span>{{ claim.memberName || 'Member #' + claim.memberId }}</span>
                 <span>Enrollment #{{ claim.enrollmentId }}</span>
                 <span>Submitted {{ claim.submittedAt | date: 'medium' }}</span>
               </div>

@@ -7,13 +7,29 @@
 
     <nav aria-label="Main navigation">
       @if (session()) {
-        <a routerLink="/dashboard" routerLinkActive="active">Overview</a>
+        @if (session()?.role === 'Admin') {
+          <a routerLink="/admin" routerLinkActive="active">Admin dashboard</a>
+        } @else {
+          <a routerLink="/dashboard" routerLinkActive="active">Overview</a>
+        }
         <a routerLink="/claims" routerLinkActive="active">Claims</a>
       }
       <a routerLink="/coverage" routerLinkActive="active">Coverage</a>
     </nav>
 
     <div class="account-actions">
+      <button
+        class="theme-switch"
+        type="button"
+        role="switch"
+        [attr.aria-checked]="isDark()"
+        [attr.aria-label]="isDark() ? 'Switch to light mode' : 'Switch to dark mode'"
+        (click)="toggleTheme()"
+      >
+        <span class="theme-icon" aria-hidden="true"></span>
+        <span class="theme-label">{{ isDark() ? 'Dark' : 'Light' }}</span>
+        <span class="switch-track" aria-hidden="true"><span></span></span>
+      </button>
       @if (session(); as authSession) {
         <span class="role-label">{{ authSession.role }}</span>
         <button mat-button type="button" (click)="logout()">Sign out</button>
