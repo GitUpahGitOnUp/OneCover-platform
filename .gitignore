@@ -485,3 +485,6 @@ $RECYCLE.BIN/
 CLAUDE.local.md
 DEV_JOURNAL.md
 .claude/settings.local.json
+
+AZURE_SETUP.local.md
+DEV_A_ISSUES.local.md
