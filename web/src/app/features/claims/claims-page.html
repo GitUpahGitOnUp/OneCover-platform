@@ -322,6 +322,16 @@
           </mat-card>
         }
       </div>
+      @if (hasMoreClaims()) {
+        <button
+          mat-button
+          type="button"
+          [disabled]="isLoadingMoreClaims()"
+          (click)="loadMoreClaims()"
+        >
+          {{ isLoadingMoreClaims() ? 'Loading more claims...' : 'Load more claims' }}
+        </button>
+      }
     }
   </section>
 </ng-template>
