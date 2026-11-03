@@ -17,7 +17,7 @@ import { MatNativeDateModule } from '@angular/material/core';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTabsModule } from '@angular/material/tabs';
-import { forkJoin } from 'rxjs';
+import { Subscription, forkJoin } from 'rxjs';
 import { apiErrorMessage } from '../../core/api/api-error';
 import { AuthService } from '../../core/auth/auth.service';
 import { CoverageService } from '../coverage/coverage.service';
@@ -52,6 +52,9 @@ export class ClaimsPage implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly claimsService = inject(ClaimsService);
   private readonly coverageService = inject(CoverageService);
+
+  // The in-flight admin list request, so a newer filter click can cancel an older one.
+  private adminLoad?: Subscription;
 
   readonly isAdmin = this.auth.sessionSnapshot?.role === 'Admin';
   readonly claims = signal<Claim[]>([]);
@@ -291,7 +294,8 @@ export class ClaimsPage implements OnInit {
   private loadAdminDashboard(): void {
     this.isLoadingClaims.set(true);
     this.errorMessage.set('');
-    forkJoin({
+    this.adminLoad?.unsubscribe();
+    this.adminLoad = forkJoin({
       summary: this.claimsService.getAdminSummary(),
       claims: this.claimsService.getAdminClaims(
         this.selectedStatus() || null,
@@ -313,7 +317,8 @@ export class ClaimsPage implements OnInit {
   private loadAdminClaims(): void {
     this.isLoadingClaims.set(true);
     this.errorMessage.set('');
-    this.claimsService
+    this.adminLoad?.unsubscribe();
+    this.adminLoad = this.claimsService
       .getAdminClaims(this.selectedStatus() || null, this.awaitingPayoutOnly())
       .subscribe({
         next: (claims) => {
