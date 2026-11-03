@@ -17,7 +17,7 @@ import { MatNativeDateModule } from '@angular/material/core';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTabsModule } from '@angular/material/tabs';
-import { forkJoin } from 'rxjs';
+import { forkJoin, Subscription } from 'rxjs';
 import { apiErrorMessage } from '../../core/api/api-error';
 import { AuthService } from '../../core/auth/auth.service';
 import { CoverageService } from '../coverage/coverage.service';
@@ -49,15 +49,20 @@ import { ClaimsService } from './claims.service';
   styleUrl: './claims-page.scss',
 })
 export class ClaimsPage implements OnInit {
+  private readonly claimsPageSize = 50;
   private readonly auth = inject(AuthService);
   private readonly claimsService = inject(ClaimsService);
   private readonly coverageService = inject(CoverageService);
+  private currentClaimsPage = 1;
+  private claimsListRequest?: Subscription;
 
   readonly isAdmin = this.auth.sessionSnapshot?.role === 'Admin';
   readonly claims = signal<Claim[]>([]);
   readonly eligibleEnrollments = signal<Enrollment[]>([]);
   readonly summary = signal<ClaimSummary | null>(null);
   readonly isLoadingClaims = signal(true);
+  readonly isLoadingMoreClaims = signal(false);
+  readonly hasMoreClaims = signal(false);
   readonly isLoadingEnrollments = signal(false);
   readonly isSubmitting = signal(false);
   readonly busyClaimId = signal<number | null>(null);
@@ -177,6 +182,40 @@ export class ClaimsPage implements OnInit {
     }
   }
 
+  loadMoreClaims(): void {
+    if (!this.hasMoreClaims() || this.isLoadingMoreClaims()) {
+      return;
+    }
+
+    const nextPage = this.currentClaimsPage + 1;
+    this.isLoadingMoreClaims.set(true);
+    this.errorMessage.set('');
+    const request = this.isAdmin
+      ? this.claimsService.getAdminClaims(
+          this.selectedStatus() || null,
+          this.awaitingPayoutOnly(),
+          nextPage,
+          this.claimsPageSize,
+        )
+      : this.claimsService.getMyClaims(nextPage, this.claimsPageSize);
+
+    this.claimsListRequest = request.subscribe({
+      next: (nextClaims) => {
+        this.claims.update((current) => {
+          const existingIds = new Set(current.map((claim) => claim.id));
+          return [...current, ...nextClaims.filter((claim) => !existingIds.has(claim.id))];
+        });
+        this.currentClaimsPage = nextPage;
+        this.hasMoreClaims.set(nextClaims.length === this.claimsPageSize);
+        this.isLoadingMoreClaims.set(false);
+      },
+      error: (error: unknown) => {
+        this.errorMessage.set(apiErrorMessage(error));
+        this.isLoadingMoreClaims.set(false);
+      },
+    });
+  }
+
   refreshClaimDetails(claimId: number): void {
     const request = this.isAdmin
       ? this.claimsService.getAdminClaim(claimId)
@@ -255,10 +294,14 @@ export class ClaimsPage implements OnInit {
   }
 
   private loadMemberClaims(): void {
+    this.cancelClaimsListRequest();
+    this.currentClaimsPage = 1;
     this.isLoadingClaims.set(true);
-    this.claimsService.getMyClaims().subscribe({
+    this.hasMoreClaims.set(false);
+    this.claimsListRequest = this.claimsService.getMyClaims().subscribe({
       next: (claims) => {
         this.claims.set(claims);
+        this.hasMoreClaims.set(claims.length === this.claimsPageSize);
         this.isLoadingClaims.set(false);
       },
       error: (error: unknown) => {
@@ -289,9 +332,12 @@ export class ClaimsPage implements OnInit {
   }
 
   private loadAdminDashboard(): void {
+    this.cancelClaimsListRequest();
+    this.currentClaimsPage = 1;
     this.isLoadingClaims.set(true);
+    this.hasMoreClaims.set(false);
     this.errorMessage.set('');
-    forkJoin({
+    this.claimsListRequest = forkJoin({
       summary: this.claimsService.getAdminSummary(),
       claims: this.claimsService.getAdminClaims(
         this.selectedStatus() || null,
@@ -301,6 +347,7 @@ export class ClaimsPage implements OnInit {
       next: (result) => {
         this.summary.set(result.summary);
         this.claims.set(result.claims);
+        this.hasMoreClaims.set(result.claims.length === this.claimsPageSize);
         this.isLoadingClaims.set(false);
       },
       error: (error: unknown) => {
@@ -311,13 +358,17 @@ export class ClaimsPage implements OnInit {
   }
 
   private loadAdminClaims(): void {
+    this.cancelClaimsListRequest();
+    this.currentClaimsPage = 1;
     this.isLoadingClaims.set(true);
+    this.hasMoreClaims.set(false);
     this.errorMessage.set('');
-    this.claimsService
+    this.claimsListRequest = this.claimsService
       .getAdminClaims(this.selectedStatus() || null, this.awaitingPayoutOnly())
       .subscribe({
         next: (claims) => {
           this.claims.set(claims);
+          this.hasMoreClaims.set(claims.length === this.claimsPageSize);
           this.isLoadingClaims.set(false);
         },
         error: (error: unknown) => {
@@ -325,6 +376,12 @@ export class ClaimsPage implements OnInit {
           this.isLoadingClaims.set(false);
         },
       });
+  }
+
+  private cancelClaimsListRequest(): void {
+    this.claimsListRequest?.unsubscribe();
+    this.claimsListRequest = undefined;
+    this.isLoadingMoreClaims.set(false);
   }
 
   private runAdminAction(

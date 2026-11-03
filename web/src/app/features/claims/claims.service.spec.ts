@@ -36,6 +36,18 @@ describe('ClaimsService', () => {
     request.flush([]);
   });
 
+  it('requests the requested member claims page', () => {
+    service.getMyClaims(2, 50).subscribe((claims) => expect(claims).toEqual([]));
+
+    const request = http.expectOne(
+      (candidate) =>
+        candidate.url === 'http://localhost:5000/api/claims' &&
+        candidate.params.get('page') === '2' &&
+        candidate.params.get('pageSize') === '50',
+    );
+    request.flush([]);
+  });
+
   it('uses the member-scoped route to refresh one claim', () => {
     service.getMyClaim(4).subscribe();
 
@@ -59,6 +71,21 @@ describe('ClaimsService', () => {
     const summaryRequest = http.expectOne('http://localhost:5000/api/admin/claims/summary');
     expect(summaryRequest.request.method).toBe('GET');
     summaryRequest.flush({});
+  });
+
+  it('requests the requested admin claims page with its filters', () => {
+    service
+      .getAdminClaims('Denied', false, 2, 50)
+      .subscribe((claims) => expect(claims).toEqual([]));
+
+    const request = http.expectOne(
+      (candidate) =>
+        candidate.url === 'http://localhost:5000/api/admin/claims' &&
+        candidate.params.get('status') === 'Denied' &&
+        candidate.params.get('page') === '2' &&
+        candidate.params.get('pageSize') === '50',
+    );
+    request.flush([]);
   });
 
   it('submits only enrollment, reason, and leave dates', () => {
