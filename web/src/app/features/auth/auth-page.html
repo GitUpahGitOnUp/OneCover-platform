@@ -92,9 +92,6 @@
               />
               <mat-datepicker-toggle matIconSuffix [for]="hireDatePicker" />
               <mat-datepicker #hireDatePicker />
-            <mat-form-field appearance="outline">
-              <mat-label>Hire date</mat-label>
-              <input matInput type="date" formControlName="hireDate" [max]="latestHireDate" />
               @if (form.controls.hireDate.hasError('required')) {
                 <mat-error>Hire date is required.</mat-error>
               } @else if (form.controls.hireDate.hasError('futureDate')) {
