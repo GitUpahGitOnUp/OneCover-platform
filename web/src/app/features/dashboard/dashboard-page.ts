@@ -1,5 +1,4 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
-import { DatePipe } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { RouterLink } from '@angular/router';
 import { apiErrorMessage } from '../../core/api/api-error';
@@ -8,7 +7,7 @@ import { ProfileService } from '../profile/profile.service';
 
 @Component({
   selector: 'app-dashboard-page',
-  imports: [DatePipe, MatCardModule, RouterLink],
+  imports: [MatCardModule, RouterLink],
   templateUrl: './dashboard-page.html',
   styleUrl: './dashboard-page.scss',
 })

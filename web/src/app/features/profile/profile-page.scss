@@ -1,0 +1,105 @@
+.page-heading {
+  margin: 1rem 0 2rem;
+
+  h1 {
+    margin: 0;
+    color: var(--text-strong);
+    font-size: clamp(2rem, 4vw, 3rem);
+    letter-spacing: -0.04em;
+  }
+
+  > div > p:last-child {
+    margin-bottom: 0;
+    color: var(--text-muted);
+  }
+}
+
+.eyebrow {
+  margin: 0 0 0.55rem;
+  color: var(--accent);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+
+.profile-card,
+.eligibility-card,
+.state-card {
+  border: 1px solid var(--surface-border);
+  border-radius: 16px;
+  background: var(--surface-glass);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(20px);
+
+  mat-card-header {
+    margin-bottom: 0.75rem;
+  }
+
+  mat-card-title {
+    color: var(--text-strong);
+    font-weight: 650;
+  }
+}
+
+dl {
+  margin: 0;
+
+  div {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.85rem 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  div:last-child {
+    border-bottom: 0;
+  }
+
+  dt {
+    color: var(--text-muted);
+  }
+
+  dd {
+    margin: 0;
+    color: var(--text-strong);
+    font-weight: 600;
+    text-align: right;
+  }
+}
+
+.eligibility-status {
+  display: inline-flex;
+  padding: 0.55rem 0.85rem;
+  border-radius: 999px;
+  background: var(--warning-soft);
+  color: var(--warning-text);
+  font-weight: 700;
+
+  &.eligible {
+    background: var(--success-soft);
+    color: var(--success-text);
+  }
+}
+
+.supporting-copy {
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.error-card {
+  color: var(--error-text);
+}
+
+@media (max-width: 720px) {
+  .profile-grid {
+    grid-template-columns: 1fr;
+  }
+}

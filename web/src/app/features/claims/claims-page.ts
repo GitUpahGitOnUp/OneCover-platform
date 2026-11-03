@@ -1,4 +1,4 @@
-import { CurrencyPipe, DatePipe, PercentPipe } from '@angular/common';
+import { CurrencyPipe, DatePipe, NgTemplateOutlet, PercentPipe } from '@angular/common';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import {
   FormControl,
@@ -10,10 +10,13 @@ import {
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatNativeDateModule } from '@angular/material/core';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
+import { MatTabsModule } from '@angular/material/tabs';
 import { forkJoin } from 'rxjs';
 import { apiErrorMessage } from '../../core/api/api-error';
 import { AuthService } from '../../core/auth/auth.service';
@@ -28,13 +31,17 @@ import { ClaimsService } from './claims.service';
     CurrencyPipe,
     DatePipe,
     FormsModule,
+    NgTemplateOutlet,
     MatButtonModule,
     MatCardModule,
     MatCheckboxModule,
+    MatDatepickerModule,
     MatFormFieldModule,
     MatInputModule,
+    MatNativeDateModule,
     MatProgressSpinnerModule,
     MatSelectModule,
+    MatTabsModule,
     PercentPipe,
     ReactiveFormsModule,
   ],
@@ -69,8 +76,8 @@ export class ClaimsPage implements OnInit {
       nonNullable: true,
       validators: [Validators.required, Validators.pattern(/\S/), Validators.maxLength(1000)],
     }),
-    startDate: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
-    endDate: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    startDate: new FormControl<Date | null>(null, Validators.required),
+    endDate: new FormControl<Date | null>(null, Validators.required),
   });
 
   selectedEnrollment(): Enrollment | null {
@@ -98,6 +105,9 @@ export class ClaimsPage implements OnInit {
     }
 
     const { enrollmentId, reason, startDate, endDate } = this.claimForm.getRawValue();
+    if (!startDate || !endDate) {
+      return;
+    }
     if (!reason.trim()) {
       this.claimForm.controls.reason.setErrors({ whitespace: true });
       this.claimForm.controls.reason.markAsTouched();
@@ -117,8 +127,8 @@ export class ClaimsPage implements OnInit {
       .submitClaim({
         enrollmentId: Number(enrollmentId),
         reason: reason.trim(),
-        startDate,
-        endDate,
+        startDate: this.formatDate(startDate),
+        endDate: this.formatDate(endDate),
       })
       .subscribe({
         next: (claim) => {
@@ -126,8 +136,8 @@ export class ClaimsPage implements OnInit {
           this.claimForm.reset({
             enrollmentId: '',
             reason: '',
-            startDate: '',
-            endDate: '',
+            startDate: null,
+            endDate: null,
           });
           this.successMessage.set(
             'Your claim was submitted. Benefit amounts are calculated by Claims.',
@@ -214,23 +224,30 @@ export class ClaimsPage implements OnInit {
     return this.summary()?.claimsByStatus.find((item) => item.status === status)?.count ?? 0;
   }
 
-  getDateRangeError(startDate: string, endDate: string): string {
+  selectedEnrollmentDate(): Date | null {
+    const enrolledOn = this.selectedEnrollment()?.enrolledOn;
+    return enrolledOn ? this.parseDate(enrolledOn) : null;
+  }
+
+  getDateRangeError(startDate: Date | null, endDate: Date | null): string {
     if (!startDate || !endDate) {
       return '';
     }
-    if (endDate < startDate) {
+    const startDateValue = this.formatDate(startDate);
+    const endDateValue = this.formatDate(endDate);
+    if (endDateValue < startDateValue) {
       return 'The leave end date cannot be before its start date.';
     }
     const enrollment = this.selectedEnrollment();
-    if (enrollment && startDate < enrollment.enrolledOn) {
+    if (enrollment && startDateValue < enrollment.enrolledOn) {
       return 'The leave cannot start before this coverage began.';
     }
 
-    const [year, month, day] = startDate.split('-').map(Number);
+    const [year, month, day] = startDateValue.split('-').map(Number);
     const maxYear = year + 1;
     const maxDay = month === 2 && day === 29 && !this.isLeapYear(maxYear) ? 28 : day;
     const firstInvalidEnd = `${String(maxYear).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(maxDay).padStart(2, '0')}`;
-    if (endDate >= firstInvalidEnd) {
+    if (endDateValue >= firstInvalidEnd) {
       return 'A single claim cannot cover one year or more.';
     }
 
@@ -336,5 +353,17 @@ export class ClaimsPage implements OnInit {
 
   private isLeapYear(year: number): boolean {
     return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  }
+
+  private formatDate(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  private parseDate(date: string): Date {
+    const [year, month, day] = date.split('-').map(Number);
+    return new Date(year, month - 1, day);
   }
 }

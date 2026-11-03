@@ -20,6 +20,12 @@ export const routes: Routes = [
       import('./features/dashboard/dashboard-page').then((module) => module.DashboardPage),
   },
   {
+    path: 'profile',
+    canActivate: [authGuard, dashboardGuard],
+    loadComponent: () =>
+      import('./features/profile/profile-page').then((module) => module.ProfilePage),
+  },
+  {
     path: 'admin',
     canActivate: [authGuard, adminGuard],
     loadComponent: () =>

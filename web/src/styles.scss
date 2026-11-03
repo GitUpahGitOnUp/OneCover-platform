@@ -90,7 +90,7 @@ body {
 }
 
 a {
-  color: inherit;
+  color: var(--accent);
 }
 
 mat-card.mat-mdc-card {
@@ -161,6 +161,26 @@ select {
 .mat-mdc-outlined-button:not(:disabled) {
   --mdc-outlined-button-label-text-color: var(--accent);
   --mdc-outlined-button-outline-color: var(--surface-border);
+}
+
+.mat-mdc-button:not(:disabled) {
+  --mdc-text-button-label-text-color: var(--accent);
+}
+
+.mat-mdc-tab-group {
+  &.member-claim-tabs {
+    margin-top: 1.25rem;
+  }
+
+  --mdc-tab-indicator-active-indicator-color: var(--accent);
+  --mat-tab-header-active-focus-label-text-color: var(--accent);
+  --mat-tab-header-active-hover-label-text-color: var(--accent);
+  --mat-tab-header-active-label-text-color: var(--accent);
+}
+
+.mat-calendar-body-selected {
+  background-color: var(--accent);
+  color: var(--button-text);
 }
 
 ::selection {

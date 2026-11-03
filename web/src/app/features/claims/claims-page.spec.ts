@@ -61,4 +61,34 @@ describe('ClaimsPage', () => {
 
     expect(component.selectedEnrollment()).toEqual(enrollment);
   });
+
+  it('submits calendar dates in the API date format', () => {
+    const enrollment: Enrollment = {
+      id: 17,
+      planId: 3,
+      planName: 'Long-Term Disability',
+      planType: 'LTD',
+      tier: 'EmployeeOnly',
+      monthlyPremium: 0,
+      estimatedPerPaycheckDeduction: 0,
+      enrolledOn: '2026-01-01',
+      status: 'Active',
+    };
+    component.eligibleEnrollments.set([enrollment]);
+    component.claimForm.setValue({
+      enrollmentId: '17',
+      reason: 'Medical leave',
+      startDate: new Date(2026, 0, 15),
+      endDate: new Date(2026, 0, 20),
+    });
+
+    component.submitClaim();
+
+    expect(TestBed.inject(ClaimsService).submitClaim).toHaveBeenCalledWith({
+      enrollmentId: 17,
+      reason: 'Medical leave',
+      startDate: '2026-01-15',
+      endDate: '2026-01-20',
+    });
+  });
 });
