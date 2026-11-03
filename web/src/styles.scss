@@ -12,6 +12,12 @@ html[data-theme='light'] {
   --input-text: #163d37;
   --accent: #147c66;
   --button-text: #ffffff;
+  --mat-sys-primary: var(--accent);
+  --mat-sys-on-primary: var(--button-text);
+  --mat-sys-primary-container: var(--accent-soft);
+  --mat-sys-on-primary-container: var(--text-strong);
+  --mat-sys-inverse-primary: var(--accent);
+  --mat-sys-surface-tint: var(--accent);
   --accent-soft: rgb(35 148 116 / 12%);
   --surface-glass: rgb(255 255 255 / 66%);
   --surface-strong: rgb(255 255 255 / 84%);
@@ -25,8 +31,8 @@ html[data-theme='light'] {
   --shadow-soft: 0 10px 28px rgb(24 65 54 / 6%);
   --focus-ring: rgb(20 124 102 / 36%);
   --switch-track: #aabbb5;
-  --blue-soft: rgb(87 139 218 / 13%);
-  --blue-text: #315f9e;
+  --blue-soft: var(--accent-soft);
+  --blue-text: var(--success-text);
   --warning-soft: rgb(225 173 67 / 17%);
   --warning-text: #855b16;
   --success-soft: #e2f5e9;
@@ -45,6 +51,12 @@ html[data-theme='dark'] {
   --input-text: #ffffff;
   --accent: #75d7b4;
   --button-text: #10251f;
+  --mat-sys-primary: var(--accent);
+  --mat-sys-on-primary: var(--button-text);
+  --mat-sys-primary-container: var(--accent-soft);
+  --mat-sys-on-primary-container: var(--text-strong);
+  --mat-sys-inverse-primary: var(--accent);
+  --mat-sys-surface-tint: var(--accent);
   --accent-soft: rgb(88 198 158 / 15%);
   --surface-glass: rgb(25 43 43 / 72%);
   --surface-strong: rgb(29 50 49 / 92%);
@@ -58,8 +70,8 @@ html[data-theme='dark'] {
   --shadow-soft: 0 12px 32px rgb(0 0 0 / 18%);
   --focus-ring: rgb(117 215 180 / 45%);
   --switch-track: #536e65;
-  --blue-soft: rgb(95 149 231 / 17%);
-  --blue-text: #9dc5ff;
+  --blue-soft: var(--accent-soft);
+  --blue-text: var(--success-text);
   --warning-soft: rgb(205 154 58 / 18%);
   --warning-text: #f1c778;
   --success-soft: rgb(71 173 117 / 19%);
@@ -78,7 +90,7 @@ body {
 body {
   background:
     radial-gradient(ellipse at 12% 4%, rgb(61 183 144 / 14%), transparent 27rem),
-    radial-gradient(ellipse at 94% 28%, rgb(83 157 196 / 11%), transparent 30rem), var(--page-bg);
+    radial-gradient(ellipse at 94% 28%, rgb(35 148 116 / 11%), transparent 30rem), var(--page-bg);
   background-attachment: fixed;
   color: var(--text-body);
   font-family: Inter, 'Segoe UI', Arial, sans-serif;
@@ -90,7 +102,7 @@ body {
 }
 
 a {
-  color: inherit;
+  color: var(--accent);
 }
 
 mat-card.mat-mdc-card {
@@ -152,15 +164,20 @@ select {
   color: var(--input-text);
 }
 
-.mat-mdc-unelevated-button:not(:disabled),
-.mat-mdc-raised-button:not(:disabled) {
-  --mdc-filled-button-container-color: var(--accent);
-  --mdc-filled-button-label-text-color: var(--button-text);
+.mat-mdc-tab-group {
+  &.member-claim-tabs {
+    margin-top: 1.25rem;
+  }
+
+  --mdc-tab-indicator-active-indicator-color: var(--accent);
+  --mat-tab-header-active-focus-label-text-color: var(--accent);
+  --mat-tab-header-active-hover-label-text-color: var(--accent);
+  --mat-tab-header-active-label-text-color: var(--accent);
 }
 
-.mat-mdc-outlined-button:not(:disabled) {
-  --mdc-outlined-button-label-text-color: var(--accent);
-  --mdc-outlined-button-outline-color: var(--surface-border);
+.mat-calendar-body-selected {
+  background-color: var(--accent);
+  color: var(--button-text);
 }
 
 ::selection {

@@ -37,19 +37,33 @@ describe('AuthPage', () => {
 
   afterEach(() => fixture.destroy());
 
-  it('blocks hire dates later than the UTC date and exposes the date limit', () => {
-    const futureDate = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  it('blocks hire dates later than today and exposes the calendar date limit', () => {
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + 1);
     const hireDate = component.form.controls.hireDate;
     hireDate.setValue(futureDate);
     hireDate.markAsTouched();
     fixture.detectChanges();
 
     expect(hireDate.hasError('futureDate')).toBe(true);
-    expect(fixture.nativeElement.querySelector('input[type="date"]').max).toBe(
-      component.latestHireDate,
-    );
+    expect(fixture.nativeElement.querySelector('mat-datepicker-toggle')).not.toBeNull();
+    expect(component.latestHireDate.getTime()).toBeLessThan(futureDate.getTime());
     expect(fixture.nativeElement.querySelector('[role="alert"]')?.textContent).toContain(
       'Invalid hire date. The date cannot be later than today.',
     );
+  });
+
+  it('requires matching passwords during registration', () => {
+    component.form.controls.password.setValue('correct-password');
+    component.form.controls.passwordConfirmation.setValue('different-password');
+    component.form.controls.passwordConfirmation.markAsTouched();
+    fixture.detectChanges();
+
+    expect(component.form.hasError('passwordMismatch')).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('Passwords do not match.');
+
+    component.form.controls.passwordConfirmation.setValue('correct-password');
+
+    expect(component.form.hasError('passwordMismatch')).toBe(false);
   });
 });

@@ -1,11 +1,19 @@
 import { Component, inject, signal } from '@angular/core';
-import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  FormControl,
+  FormGroup,
+  ReactiveFormsModule,
+  ValidatorFn,
+  Validators,
+} from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatNativeDateModule } from '@angular/material/core';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { apiErrorMessage } from '../../core/api/api-error';
@@ -17,8 +25,10 @@ import { RegistrationRequest } from '../../core/auth/auth.models';
   imports: [
     MatButtonModule,
     MatCardModule,
+    MatDatepickerModule,
     MatFormFieldModule,
     MatInputModule,
+    MatNativeDateModule,
     MatProgressSpinnerModule,
     MatSelectModule,
     ReactiveFormsModule,
@@ -36,23 +46,36 @@ export class AuthPage {
   readonly isSubmitting = signal(false);
   readonly errorMessage = signal('');
   readonly returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
-  readonly latestHireDate = new Date().toISOString().slice(0, 10);
-  readonly form = new FormGroup({
-    email: new FormControl('', {
-      nonNullable: true,
-      validators: [Validators.required, Validators.email, Validators.maxLength(256)],
-    }),
-    password: new FormControl('', {
-      nonNullable: true,
-      validators: [Validators.required, Validators.maxLength(128)],
-    }),
-    firstName: new FormControl('', { nonNullable: true }),
-    lastName: new FormControl('', { nonNullable: true }),
-    hireDate: new FormControl('', { nonNullable: true }),
-    annualSalary: new FormControl('', { nonNullable: true }),
-    employmentType: new FormControl<'FullTime' | 'PartTime'>('FullTime', { nonNullable: true }),
-    ssnLast4: new FormControl('', { nonNullable: true }),
-  });
+  readonly latestHireDate = this.today();
+  private readonly passwordMatchValidator: ValidatorFn = (control) => {
+    if (!this.isRegister()) {
+      return null;
+    }
+
+    const password = control.get('password')?.value;
+    const confirmation = control.get('passwordConfirmation')?.value;
+    return confirmation && password !== confirmation ? { passwordMismatch: true } : null;
+  };
+  readonly form = new FormGroup(
+    {
+      email: new FormControl('', {
+        nonNullable: true,
+        validators: [Validators.required, Validators.email, Validators.maxLength(256)],
+      }),
+      password: new FormControl('', {
+        nonNullable: true,
+        validators: [Validators.required, Validators.maxLength(128)],
+      }),
+      passwordConfirmation: new FormControl('', { nonNullable: true }),
+      firstName: new FormControl('', { nonNullable: true }),
+      lastName: new FormControl('', { nonNullable: true }),
+      hireDate: new FormControl<Date | null>(null),
+      annualSalary: new FormControl('', { nonNullable: true }),
+      employmentType: new FormControl<'FullTime' | 'PartTime'>('FullTime', { nonNullable: true }),
+      ssnLast4: new FormControl('', { nonNullable: true }),
+    },
+    { validators: this.passwordMatchValidator },
+  );
 
   constructor() {
     this.route.data.subscribe((data) => {
@@ -88,6 +111,9 @@ export class AuthPage {
       Validators.maxLength(128),
       ...(registrationValidators ? [Validators.minLength(8)] : []),
     ]);
+    this.form.controls.passwordConfirmation.setValidators(
+      registrationValidators ? [Validators.required] : [],
+    );
     this.form.controls.firstName.setValidators(
       registrationValidators ? [Validators.required, Validators.maxLength(100)] : [],
     );
@@ -99,7 +125,9 @@ export class AuthPage {
         ? [
             Validators.required,
             (control) =>
-              control.value && control.value > this.latestHireDate ? { futureDate: true } : null,
+              control.value instanceof Date && control.value > this.latestHireDate
+                ? { futureDate: true }
+                : null,
           ]
         : [],
     );
@@ -124,11 +152,23 @@ export class AuthPage {
       password: values.password,
       firstName: values.firstName,
       lastName: values.lastName,
-      hireDate: values.hireDate,
+      hireDate: values.hireDate ? this.formatDate(values.hireDate) : '',
       annualSalary: Number(values.annualSalary),
       employmentType: values.employmentType,
       ssnLast4: values.ssnLast4,
     };
+  }
+
+  private today(): Date {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
+
+  private formatDate(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   private getReturnUrl(): string {

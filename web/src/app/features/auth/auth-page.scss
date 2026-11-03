@@ -78,6 +78,11 @@
   line-height: 1.4;
 }
 
+.password-error {
+  margin: -0.75rem 0 1rem;
+  color: var(--error-text);
+}
+
 .submit-button {
   width: 100%;
   min-height: 48px;
