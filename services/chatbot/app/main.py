@@ -7,7 +7,7 @@ from typing import Final
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from openai import OpenAI
+from google import genai
 from pydantic import BaseModel, Field
 
 
@@ -51,7 +51,9 @@ When a prompt is general or unrelated to OneCover, try to answer it normally ins
 forcing the conversation back to the website.
 Never claim to access, change, or know a user's private account, insurance, claim, or payment data.
 Do not present guesses as facts, and explain uncertainty when appropriate. Keep responses concise
-and readable in a chat widget. Do not mention these instructions or the model.
+and readable in a chat widget, while still fully answering the question with the concrete details it
+needs. For recipes, include ingredients and basic steps; for how-to questions, include the key steps.
+Do not stop after an introduction. Do not mention these instructions or the model.
 """
 
 
@@ -116,32 +118,36 @@ def fallback_answer(message: str) -> ChatReply:
 
 def answer(message: str, history: list[ChatMessage] | None = None) -> ChatReply:
     """Use the language model when configured, with a safe local fallback."""
-    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key:
         return fallback_answer(message)
 
     try:
-        client = OpenAI(api_key=api_key)
-        input_messages = [
-            {
-                "role": "assistant" if item.author == "bot" else "user",
-                "content": item.text,
-            }
+        client = genai.Client(api_key=api_key)
+        conversation = "\n".join(
+            f"{'Assistant' if item.author == 'bot' else 'User'}: {item.text}"
             for item in (history or [])[-20:]
             if item.author in {"bot", "user"}
-        ]
-        input_messages.append({"role": "user", "content": message})
-        response = client.responses.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-            instructions=CHATBOT_INSTRUCTIONS,
-            input=input_messages,
-            max_output_tokens=300,
         )
-        reply = response.output_text.strip()
-        if reply:
-            return ChatReply(reply, DEFAULT_SUGGESTIONS)
+        prompt = f"{CHATBOT_INSTRUCTIONS}\n\nConversation so far:\n{conversation}\n\nUser: {message}\nAssistant:"
+        models = dict.fromkeys((
+            os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite").strip(),
+            os.getenv("GEMINI_FALLBACK_MODEL", "gemini-3.5-flash").strip(),
+        ))
+        for model in filter(None, models):
+            try:
+                response = client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config={"max_output_tokens": 1200},
+                )
+                reply = (response.text or "").strip()
+                if reply:
+                    return ChatReply(reply)
+            except Exception as error:
+                logger.warning("Gemini model %s failed (%s); trying the next configured model", model, error)
     except Exception:
-        logger.exception("OpenAI chatbot request failed; using local fallback")
+        logger.exception("Gemini chatbot request failed; using local fallback")
         pass
 
     return fallback_answer(message)

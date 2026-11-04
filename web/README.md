@@ -46,7 +46,7 @@ The floating Help button is available on every page. Chat requests go through th
 Python chatbot service. The chatbot provides guidance for navigation, account creation, coverage
 enrollment, and claim filing; it does not access or change member data.
 
-When `OPENAI_API_KEY` is set in the repository `.env` file, the chatbot uses the OpenAI Responses
-API for open-ended prompts and conversation history. `OPENAI_MODEL` can optionally select the
-model, defaulting to `gpt-4o-mini`. If no key is configured, the service uses its local website-help
+When `GEMINI_API_KEY` is set in the repository `.env` file, the chatbot uses the Gemini API for
+open-ended prompts and conversation history. `GEMINI_MODEL` can optionally select the model,
+defaulting to `gemini-3.5-flash-lite`. If no key is configured, the service uses its local website-help
 fallback responses.

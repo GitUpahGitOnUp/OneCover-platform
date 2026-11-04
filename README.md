@@ -171,15 +171,17 @@ used to initialize SQL Server. If this checkout already has a persistent SQL vol
 that volume or rotate the SQL login deliberately. Do not delete the volume to resolve a password
 mismatch if you need to keep its data.
 
-For open-ended chatbot responses, optionally add an OpenAI API key to `.env`:
+For Gemini-powered chatbot responses, create an API key in [Google AI Studio](https://aistudio.google.com/app/apikey) and add it to `.env`:
 
 ```dotenv
-OPENAI_API_KEY=<your-private-api-key>
-OPENAI_MODEL=gpt-4o-mini
+GEMINI_API_KEY=<your-private-api-key>
+GEMINI_MODEL=gemini-3.5-flash-lite
+GEMINI_FALLBACK_MODEL=gemini-3.5-flash
 ```
 
 The key is used only by the FastAPI chatbot container and must not be added to Angular or committed
-to Git. Without a key, the chatbot uses its local website-help fallback responses.
+to Git. Gemini's API has a free tier with model and rate limits; Google may use free-tier content to
+improve its products. Without a key, the chatbot uses its local website-help fallback responses.
 
 ### Start the backend
 
@@ -231,7 +233,7 @@ claim. Admin accounts can review the claims queue, move claims through their all
 and resend an unconfirmed payout request. Keep both terminals running while using the app.
 
 The floating Help button sends prompts through the gateway to the FastAPI chatbot. With
-`OPENAI_API_KEY` configured, it can respond to open-ended prompts and use recent chat history.
+`GEMINI_API_KEY` configured, it can respond to open-ended prompts and use recent chat history.
 
 Public registration always creates a Member account. To create a local admin account, set these
 values in `.env` before restarting Identity:
