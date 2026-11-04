@@ -4,10 +4,11 @@ import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from './core/auth/auth.service';
 import { ThemeService } from './core/theme/theme.service';
+import { ChatbotWidget } from './core/chatbot/chatbot-widget';
 
 @Component({
   selector: 'app-root',
-  imports: [MatButtonModule, RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [ChatbotWidget, MatButtonModule, RouterLink, RouterLinkActive, RouterOutlet],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })

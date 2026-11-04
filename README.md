@@ -7,7 +7,7 @@ and record benefit disbursements.
 This is the microservices version of the original OneCover monolith (a layered ASP.NET Core API + Angular app).
 Built as a portfolio project in a .NET full-stack training program.
 
-> **Status:** API services, Docker Compose, and the Angular member/admin UI are implemented; full-stack end-to-end verification remains.
+> **Status:** API services, Docker Compose, the FastAPI chatbot, and the Angular member/admin UI are implemented; full-stack end-to-end verification remains.
 > See [`docs/MICROSERVICES_PLAN.md`](docs/MICROSERVICES_PLAN.md) for the plan and checklist.
 
 ## Architecture
@@ -171,6 +171,18 @@ used to initialize SQL Server. If this checkout already has a persistent SQL vol
 that volume or rotate the SQL login deliberately. Do not delete the volume to resolve a password
 mismatch if you need to keep its data.
 
+For Gemini-powered chatbot responses, create an API key in [Google AI Studio](https://aistudio.google.com/app/apikey) and add it to `.env`:
+
+```dotenv
+GEMINI_API_KEY=<your-private-api-key>
+GEMINI_MODEL=gemini-3.5-flash-lite
+GEMINI_FALLBACK_MODEL=gemini-3.5-flash
+```
+
+The key is used only by the FastAPI chatbot container and must not be added to Angular or committed
+to Git. Gemini's API has a free tier with model and rate limits; Google may use free-tier content to
+improve its products. Without a key, the chatbot uses its local website-help fallback responses.
+
 ### Start the backend
 
 Make sure Docker Desktop is running, then run from the repository root:
@@ -181,18 +193,29 @@ docker compose ps
 ```
 
 The first build may take several minutes. Wait until SQL Server is healthy and the API and gateway
-containers are running. To inspect startup output:
+containers are running. The chatbot service is included in this Compose command. To inspect startup output:
 
 ```powershell
 docker compose logs -f gateway
 ```
 
 Press Ctrl+C to stop following logs; this does not stop the containers. The gateway is available at
-`http://localhost:5000`. Compose starts SQL Server and all four APIs, applying each service's own
+`http://localhost:5000`. Compose starts SQL Server and all backend services, applying each service's own
 migrations to its own database. Containers run in Production mode; the development-only
 Disbursements token endpoint and interactive API pages are not enabled. Only the Gateway is
 available from the host. Service-to-service calls use the shared internal key on the private
 Compose network; `/internal/**` is not publicly routed.
+
+Verify the gateway and chatbot before starting the frontend:
+
+```powershell
+Invoke-RestMethod http://localhost:5000/health
+Invoke-RestMethod `
+  -Uri http://localhost:5000/api/chatbot/message `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body '{"message":"How do I file a claim?","history":[]}'
+```
 
 ### Start the frontend
 
@@ -208,6 +231,9 @@ Open `http://localhost:4200` or `http://127.0.0.1:4200`, create a member account
 and enroll in coverage. Once enrolled in STD or LTD, use Claims to file and track a disability
 claim. Admin accounts can review the claims queue, move claims through their allowed workflow,
 and resend an unconfirmed payout request. Keep both terminals running while using the app.
+
+The floating Help button sends prompts through the gateway to the FastAPI chatbot. With
+`GEMINI_API_KEY` configured, it can respond to open-ended prompts and use recent chat history.
 
 Public registration always creates a Member account. To create a local admin account, set these
 values in `.env` before restarting Identity:
