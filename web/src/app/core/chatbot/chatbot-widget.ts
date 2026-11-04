@@ -50,7 +50,7 @@ export class ChatbotWidget {
     this.errorMessage.set('');
     this.isSending.set(true);
     this.chatbot
-      .ask(message)
+      .ask(message, this.messages().slice(-20))
       .pipe(finalize(() => this.isSending.set(false)))
       .subscribe({
         next: (response) => {

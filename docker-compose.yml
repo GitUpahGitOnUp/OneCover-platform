@@ -98,6 +98,8 @@ services:
       dockerfile: services/chatbot/Dockerfile
     environment:
       PYTHONUNBUFFERED: "1"
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
 
   gateway:
     build:
