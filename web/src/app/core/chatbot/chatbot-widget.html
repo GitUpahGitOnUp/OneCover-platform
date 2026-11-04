@@ -1,0 +1,59 @@
+<button
+  class="chat-launcher"
+  type="button"
+  [attr.aria-expanded]="isOpen()"
+  aria-label="Open OneCover help chat"
+  (click)="toggle()"
+>
+  <span aria-hidden="true">?</span>
+  <span>Help</span>
+</button>
+
+@if (isOpen()) {
+  <section class="chat-panel" aria-label="OneCover help chat">
+    <header class="chat-header">
+      <div>
+        <span class="eyebrow">OneCover help</span>
+        <h2>How can we help?</h2>
+      </div>
+      <button type="button" class="close-button" aria-label="Close help chat" (click)="toggle()">
+        ×
+      </button>
+    </header>
+
+    <div class="chat-messages" aria-live="polite">
+      @for (message of messages(); track $index) {
+        <p class="message" [class.user-message]="message.author === 'user'">
+          {{ message.text }}
+        </p>
+      }
+      @if (isSending()) {
+        <p class="message">Thinking...</p>
+      }
+    </div>
+
+    @if (errorMessage()) {
+      <p class="chat-error" role="alert">{{ errorMessage() }}</p>
+    }
+
+    <div class="suggestions">
+      @for (suggestion of suggestions(); track suggestion) {
+        <button type="button" (click)="askSuggestion(suggestion)">{{ suggestion }}</button>
+      }
+    </div>
+
+    <form class="chat-form" (ngSubmit)="send()">
+      <label class="sr-only" for="chat-prompt">Ask OneCover help</label>
+      <input
+        id="chat-prompt"
+        name="prompt"
+        [ngModel]="prompt()"
+        (ngModelChange)="prompt.set($event)"
+        maxlength="500"
+        placeholder="Ask about OneCover..."
+        autocomplete="off"
+      />
+      <button type="submit" [disabled]="isSending() || !prompt().trim()">Send</button>
+    </form>
+  </section>
+}

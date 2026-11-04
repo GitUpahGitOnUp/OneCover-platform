@@ -92,6 +92,13 @@ services:
       disbursements:
         condition: service_started
 
+  chatbot:
+    build:
+      context: .
+      dockerfile: services/chatbot/Dockerfile
+    environment:
+      PYTHONUNBUFFERED: "1"
+
   gateway:
     build:
       context: .
@@ -105,6 +112,7 @@ services:
       ReverseProxy__Clusters__enrollment__Destinations__enrollment-api__Address: http://enrollment:8080/
       ReverseProxy__Clusters__claims__Destinations__claims-api__Address: http://claims:8080/
       ReverseProxy__Clusters__disbursements__Destinations__disbursements-api__Address: http://disbursements:8080/
+      ReverseProxy__Clusters__chatbot__Destinations__chatbot-api__Address: http://chatbot:8000/
     ports:
       - "5000:8080"
     depends_on:
@@ -115,6 +123,8 @@ services:
       claims:
         condition: service_started
       disbursements:
+        condition: service_started
+      chatbot:
         condition: service_started
 
 volumes:

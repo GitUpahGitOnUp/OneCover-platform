@@ -41,3 +41,7 @@ enable the demo admin in `.env` as described in the repository README, then sign
 admin account.
 
 Run `npm run build` for a production build and `npm test -- --watch=false` for the unit tests.
+
+The floating Help button is available on every page. Chat requests go through the gateway to the
+Python chatbot service. The chatbot provides guidance for navigation, account creation, coverage
+enrollment, and claim filing; it does not access or change member data.
