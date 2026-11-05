@@ -120,7 +120,8 @@ public class BenefitClaim
     /// <summary>
     /// Creates a new claim in Submitted status, with its first history row.
     /// Throws <see cref="BusinessRuleException"/> if the end date is before the start date,
-    /// the leave begins before coverage did, or one claim covers more than a year.
+    /// the leave begins before coverage did, one claim covers more than a year,
+    /// or the leave is no longer than the plan's unpaid elimination period (it could never pay anything).
     /// </summary>
     /// <param name="memberId">The member filing the claim (from the JWT).</param>
     /// <param name="enrollmentId">The active STD or LTD enrollment the claim is against.</param>
@@ -198,6 +199,19 @@ public class BenefitClaim
             throw new BusinessRuleException("A single claim can't cover more than one year.");
         }
 
+        // The first planEliminationDays days of a leave are unpaid (7 for STD, 90 for LTD). A leave that is no
+        // longer than that has no payable days, so it could only ever be worth $0.00. Refuse it at filing time
+        // instead of leaving an admin to deny it by hand. Both the start and end day count, hence the + 1.
+        // Example: with a 7-day elimination period, 2026-10-01 to 2026-10-07 is 7 days (refused) and
+        // 2026-10-01 to 2026-10-08 is 8 days (accepted, 1 payable day).
+        var leaveDays = endDate.DayNumber - startDate.DayNumber + 1;
+        if (leaveDays <= planEliminationDays)
+        {
+            throw new BusinessRuleException(
+                $"This plan doesn't pay for the first {planEliminationDays} days of a leave, " +
+                $"so the leave must last at least {planEliminationDays + 1} days to receive a benefit.");
+        }
+
         // The amounts come from the benefit calculator, but this class does not trust them blindly: it checks
         // that they fit the plan snapshot it is about to store, so a wrong amount can't reach Disbursements.
         // The weekly benefit can never be negative or above the plan's weekly maximum.
@@ -208,7 +222,6 @@ public class BenefitClaim
 
         // The total can never be negative or more than the weekly benefit spread over EVERY day of the leave
         // (the real total is lower, because the first elimination days are unpaid). Both end days count, hence + 1.
-        var leaveDays = endDate.DayNumber - startDate.DayNumber + 1;
         var mostPossibleTotal = Math.Round(weeklyBenefit / 7m * leaveDays, 2, MidpointRounding.AwayFromZero);
         if (totalBenefit < 0 || totalBenefit > mostPossibleTotal)
         {
