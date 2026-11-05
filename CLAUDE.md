@@ -63,6 +63,8 @@ Each service follows controllers → services → repositories, with its own `Db
 **Claims**
 - Only against an active STD or LTD enrollment.
 - Leave can't end before it starts or begin before coverage did, and one claim can't exceed one year.
+- A leave must be longer than the plan's elimination period (STD: at least 8 days, LTD: at least 91 days,
+  counting both end days). A shorter leave has no payable days, so it is refused at filing instead of left for an admin to deny.
 - Workflow (every move writes a history row):
   Submitted → InReview ⇄ InfoRequested; InReview → Approved | Denied; Approved/Denied → Closed.
 

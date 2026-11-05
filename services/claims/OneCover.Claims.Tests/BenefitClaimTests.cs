@@ -284,6 +284,56 @@ public class BenefitClaimTests
         Assert.Equal(new DateOnly(2027, 2, 28), claim.EndDate);
     }
 
+    // The elimination period is unpaid, so a leave of that length or shorter can never pay anything.
+    // Both end days count: 7 days is Oct 1 to Oct 7, and 90 days is Oct 1 to Dec 29.
+    [Theory]
+    [InlineData(7, 1)]    // STD, a 1-day leave
+    [InlineData(7, 7)]    // STD, exactly the elimination period
+    [InlineData(90, 30)]  // LTD, a 30-day leave
+    [InlineData(90, 90)]  // LTD, exactly the elimination period
+    public void Submit_Throws_WhenTheLeaveIsNoLongerThanTheEliminationPeriod(int eliminationDays, int leaveDays)
+    {
+        var start = new DateOnly(2026, 10, 1);
+
+        var ex = Assert.Throws<BusinessRuleException>(() =>
+            Submit(
+                planEliminationDays: eliminationDays,
+                startDate: start,
+                endDate: start.AddDays(leaveDays - 1),
+                totalBenefit: 0m));
+
+        Assert.Contains($"first {eliminationDays} days", ex.Message);
+        Assert.Contains($"at least {eliminationDays + 1} days", ex.Message);
+    }
+
+    [Theory]
+    [InlineData(7, 8)]    // STD, one day past the elimination period: 1 payable day
+    [InlineData(90, 91)]  // LTD, one day past the elimination period: 1 payable day
+    public void Submit_Allows_ALeaveOneDayLongerThanTheEliminationPeriod(int eliminationDays, int leaveDays)
+    {
+        var start = new DateOnly(2026, 10, 1);
+
+        var claim = Submit(
+            planEliminationDays: eliminationDays,
+            startDate: start,
+            endDate: start.AddDays(leaveDays - 1),
+            totalBenefit: 128.57m);
+
+        Assert.Equal(ClaimStatus.Submitted, claim.Status);
+    }
+
+    [Fact]
+    public void Submit_Allows_AnyLeaveLength_WhenThePlanHasNoEliminationPeriod()
+    {
+        var claim = Submit(
+            planEliminationDays: 0,
+            startDate: new DateOnly(2026, 10, 1),
+            endDate: new DateOnly(2026, 10, 1),
+            totalBenefit: 128.57m);   // one day at 900 / 7
+
+        Assert.Equal(new DateOnly(2026, 10, 1), claim.EndDate);
+    }
+
     // [Theory] runs the same test once per row. Each row is a bad plan snapshot or id that must be refused.
     [Theory]
     [InlineData(0, 7)]    // memberId of 0 (a default from a bug)
